@@ -1,10 +1,13 @@
-from correlate import *
 from util import *
 import librosa
 import pandas as pd
 from os import path
 import numpy as np
 import matplotlib.pyplot as plt
+from IPython.display import Audio
+
+
+
 
 def plot_correlations(correlations_file, reference_wav=None, 
                        duration=None, deployment=1, site=1, save_as=None, frequency_lines=None):
@@ -92,20 +95,25 @@ def plot_datetime(deployment=1, site=1, df=None, save_as=None):
     plt.show()
 
 
-def view_spectogram(file_path="./test_data/chirp_test_1.wav", file_id=None, time_segment=None, frequency_range=None):
+def view_spectrogram(file_path="./test_data/chirp_test_1.wav", file_id=None, time_segment=None, 
+                     frequency_range=None, playback=True, ax=None, title=None):
     """ view an inline spectrogram 
     """
     dir, file = path.split(file_path)
+
+    show_plot = (ax is None)
+        
     
     if file_id:
         file_path = path.join(get_depl_dir(1, 1), "Data", file_id)
     
-    print("opening ", file_path)
+    # print("opening ", file_path)
     y, sr = load(file_path)
-    
+
     if time_segment:
         start, end = time_segment
-        y = y[int(sr * start):int(sr * end)]
+        widen_s = 1
+        y = y[int(sr * (start - widen_s)):int(sr * (end + widen_s))]
         
     S = librosa.stft(y) 
     
@@ -113,28 +121,46 @@ def view_spectogram(file_path="./test_data/chirp_test_1.wav", file_id=None, time
     graph_width = min(2 * duration, 20)
     graph_height = 4
 
-    # restrict stft on frequency
-    if frequency_range:
-        start, end = frequency_range
-        low_i = int(np.floor(start * (S.shape[0] * 2) / sr))
-        high_i = int(np.ceil(end * (S.shape[0] * 2) / sr))
-        S = S[low_i:high_i, :]
-        graph_height = min(4 * ((end-start)/10_000), 4) 
+    # # restrict stft on frequency
+    # if frequency_range:
+    #     start, end = frequency_range
+    #     low_i = int(np.floor(start * (S.shape[0] * 2) / sr))
+    #     high_i = int(np.ceil(end * (S.shape[0] * 2) / sr))
+    #     S = S[low_i:high_i, :]
+    #     graph_height = min(4 * ((end-start)/10_000), 4) 
 
+    
     S_db = librosa.amplitude_to_db(np.abs(S), ref=np.max)
     
-    fig, ax = plt.subplots(
-        figsize=(graph_width, graph_height)
-    )
+    if not ax:
+        fig, ax = plt.subplots(
+            figsize=(graph_width, graph_height)
+        )
     
-    img = librosa.display.specshow(S_db, y_axis='linear' if not frequency_range else None, ax=ax)
+    if frequency_range:
+        ax.axhline(y = frequency_range[0], color = 'g', linestyle = '-') 
+        ax.axhline(y = frequency_range[1], color = 'g', linestyle = '-') 
+
+    if time_segment:
+        print(widen_s, S_db.shape)
+        ax.axvline(x = sr * widen_s, color = 'g', linestyle = '-')
+        ax.axvline(x = sr * (end - widen_s), color = 'g', linestyle = '-')
+
+    img = librosa.display.specshow(S_db, y_axis='linear', ax=ax)
     # if frequency_range:
         # ax.set_ylim(frequency_range)
-    if frequency_range:
-        ax.set_ylabel((int(start), int(end)))
-    ax.set(title=file)
-    fig.colorbar(img, ax=ax, format="%+2.f dB")
-    plt.show()
+    # if frequency_range:
+        # ax.set_ylabel((int(start), int(end)))
+    
+    ax.set(title=title if title is not None else file)
+
+    # fig.colorbar(img, ax=ax, format="%+2.f dB")
+    
+    if show_plot:
+        plt.show()
+
+    if playback:
+        Audio(data=y, rate=sr)
 
 
 def multi_plot_spectogram(files_dir, save_as=None):
