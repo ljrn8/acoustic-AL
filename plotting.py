@@ -98,7 +98,9 @@ def view_spectrogram(file_path="./test_data/chirp_test_1.wav",
                      frequency_range=None, 
                      playback=True, 
                      ax=None, 
-                     title=None):
+                     sr=96_000,
+                     title=None,
+                     scale_y=True):
 
     dir, file = path.split(file_path)
     show_plot = (ax is None)
@@ -106,17 +108,18 @@ def view_spectrogram(file_path="./test_data/chirp_test_1.wav",
         file_path = path.join(get_depl_dir(1, 1), "Data", file_id)
     
     # print("opening ", file_path)
-    y, sr = load(file_path)
+    y, sr = load(file_path, sr=sr)
+
+    # print(librosa.get_duration(y=y, sr=sr))
 
     if time_segment:
         start, end = time_segment
         # widen = (end - start) * 0.2
         widen = 1 # see 1 second outwards
-        y = y[int(sr * (start - widen)):int(sr * (end + widen))]
+        y = y[max(int(sr * (start - widen)), 0):int(sr * (end + widen))]
         
     n_fft = 2048
     hop_length = n_fft // 4
-    duration = librosa.get_duration(y=y, sr=sr)
     S = librosa.stft(y, n_fft=n_fft, hop_length=hop_length) 
 
     # # restrict stft on frequency
@@ -135,17 +138,16 @@ def view_spectrogram(file_path="./test_data/chirp_test_1.wav",
     if frequency_range:
         ax.axhline(y = frequency_range[0], color = 'g', linestyle = '-') 
         ax.axhline(y = frequency_range[1], color = 'g', linestyle = '-') 
-
+    
+    if scale_y:
+        # scale_up = int(frequency_range[1] * 0.3)
+        ax.set_ylim(0, frequency_range[1] + 13_000)
+            
     if time_segment:
         ax.axvline(x = int(widen * sr / hop_length), color = 'g', linestyle = '-')
         ax.axvline(x = S.shape[1] - int(widen * sr / hop_length), color = 'g', linestyle = '-')
 
-    img = librosa.display.specshow(S_db, y_axis='linear', ax=ax)
-    # if frequency_range:
-        # ax.set_ylim(frequency_range)
-    # if frequency_range:
-        # ax.set_ylabel((int(start), int(end)))
-    
+    img = librosa.display.specshow(S_db, y_axis='linear', ax=ax, sr=sr) 
     ax.set(title=title if title is not None else file)
     if show_plot: 
         plt.show()
