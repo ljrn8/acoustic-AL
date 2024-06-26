@@ -66,10 +66,9 @@ def get_depl_dir(deployment, site):
         base_dir = "E:\\acoustic-AL-dataset"
     else:
         base_dir = "/media/joel/One Touch/Joel"
-        
-    site_1, site_7 = path.join(base_dir, "site01"), path.join(base_dir, "site02")
-    site = site_1 if site == 1 else site_7
+    site = f"site0{site}"
     return path.join(site, "deployment_" + str(deployment).zfill(3))
+
 
 def get_deployment_summary(deployment, site=1):
     depl = get_depl_dir(deployment, site)
