@@ -6,7 +6,7 @@ import os
 import subprocess
 from os import path
 import soundfile as sf
-import sqlite3 
+import sqlite3
 
 ## TODO
 # https://docs.python.org/3/tutorial/modules.html
@@ -14,60 +14,60 @@ import sqlite3
 # replace some of 7 for 1
 
 ## TODO eventual
-# start saving mass figures 
+# start saving mass figures
 # proper documentation
 
+
 def freq_range(S, sr, range):
-    """ frequency constricted stft S 
-    """
+    """frequency constricted stft S"""
     start_hz, end_hz = range
     low_i = int(np.floor(start_hz * (S.shape[0] * 2) / sr))
     high_i = int(np.ceil(end_hz * (S.shape[0] * 2) / sr))
     return S[low_i:high_i, :]
 
+
 def bounded_box(y, sr, time_segment, frequency_range=None):
-    """ retrive stft of the given given waveform restricted by time and frequency
-    """
+    """retrive stft of the given given waveform restricted by time and frequency"""
     start_s, end_s = time_segment
-    y = y[int(sr * start_s):int(sr * end_s)]
-    S = librosa.stft(y) 
+    y = y[int(sr * start_s) : int(sr * end_s)]
+    S = librosa.stft(y)
     if frequency_range:
         S = freq_range(frequency_range)
     return S
-    
+
+
 def extract_labels(audacity_project):
-    """ TODO
-    """
+    """TODO"""
     conn = sqlite3.connect(audacity_project)
     cursor = conn.cursor()
-
     # cursor.execute("SELECT * FROM labels")
     labels = cursor.fetchall()
     conn.close()
-    
     extracted_labels = []
     print(labels)
     for label in labels:
         label_id, tmin, tmax, text, tlabel, fmin, fmax = label
-        extracted_labels.append({
-            'id': label_id,
-            'tmin': tmin,
-            'tmax': tmax,
-            'text': text,
-            'tlabel': tlabel,
-            'fmin': fmin,
-            'fmax': fmax
-        })
-    
+        extracted_labels.append(
+            {
+                "id": label_id,
+                "tmin": tmin,
+                "tmax": tmax,
+                "text": text,
+                "tlabel": tlabel,
+                "fmin": fmin,
+                "fmax": fmax,
+            }
+        )
     return extracted_labels
 
+
 def get_depl_dir(deployment, site):
-    if os.name == 'nt':
+    if os.name == "nt":
         base_dir = "E:\\acoustic-AL-dataset"
     else:
         base_dir = "/media/joel/One Touch/Joel"
-    site = f"site0{site}"
-    return path.join(site, "deployment_" + str(deployment).zfill(3))
+    site = "site" + str(site).zfill(2)
+    return path.join(base_dir, site, "deployment_" + str(deployment).zfill(3))
 
 
 def get_deployment_summary(deployment, site=1):
@@ -77,16 +77,19 @@ def get_deployment_summary(deployment, site=1):
             with open(path.join(depl, i), "r") as f:
                 df = pd.read_csv(f)
             return df
-        
+
+
 def list_data(deployment, site=1):
     data = path.join(get_depl_dir(deployment, site) + "/Data")
     return os.listdir(data)
 
+
 def open_a(deployment=1, site=1, file_id=None, index=None, file=None):
-    """ opens the specified audio segment (filename) or file index (index) in audacity
-    """
-    bn = "\"C://Program Files//Audacity//Audacity.exe\"" if os.name == "nt" else "audacity"
-    
+    """opens the specified audio segment (filename) or file index (index) in audacity"""
+    bn = (
+        '"C://Program Files//Audacity//Audacity.exe"' if os.name == "nt" else "audacity"
+    )
+
     if not (file_id or index or file):
         return ValueError("filename or index required")
 
@@ -101,12 +104,13 @@ def open_a(deployment=1, site=1, file_id=None, index=None, file=None):
             print("opening ", p)
             subprocess.run(f"{bn} {p}", shell=True)
 
+
 def load(file_path, sr=None):
     return librosa.load(file_path, sr=sr) if sr else librosa.load(file_path)
 
+
 def extract_segment(file, output_file, start_s, end_s):
-    """ save part of a sound file 
-    """
+    """save part of a sound file"""
     y, sr = librosa.load(file)
     start_sample = int(start_s * sr)
     end_sample = int(end_s * sr)
