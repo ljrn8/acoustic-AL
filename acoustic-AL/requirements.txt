@@ -1,0 +1,10 @@
+ipython==8.12.3
+librosa==0.10.2.post1
+matplotlib==3.9.1
+numpy==2.0.1
+pandas==2.2.2
+PyGetWindow==0.0.9
+python-dotenv==1.0.1
+soundfile==0.12.1
+scikit-maad==1.4.2
+
