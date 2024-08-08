@@ -42,7 +42,7 @@ class Template(BoundedBox):
         frequency_lims (tuple[int]): 
             (high, low) frequency limits fro the segment in hz
 
-    Attributes:
+Attributes:
         raw_correlations (pandas.DataFrame): stored raw output after running Template.template_match()
         incremental_correlations (list): deployment wize output after running Template.template_match()
 
