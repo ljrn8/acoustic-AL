@@ -2,10 +2,11 @@ ipython
 Pathlib
 librosa
 matplotlib
-numpy
+numpy==1.23.0 
 pandas
 PyGetWindow
 python-dotenv
 soundfile
 scikit-maad
+tensorflow
 

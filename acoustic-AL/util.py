@@ -11,11 +11,10 @@ import pandas as pd
 import soundfile as sf
 from config import *
 from pathlib import Path
+import wave
+import audioread
 
-from tensorflow.keras.utils import Sequence
-from sklearn.preprocessing import LabelBinarizer
 
-    
 class BoundedBox():
     """Optional, Convenient Spectrogam Bounded Box represenation. 
     May be used for for template matching or annotations.
@@ -86,14 +85,17 @@ class Dataset():
     """
 
     root: str
-    sites: list[str]
+    sites: list
 
     def __init__(self, dataset_root=None):
         self.root = dataset_root or DATA_ROOT
         self.sites = self._get_sites()
         
     def _get_sites(self):
-        return [site for site in os.listdir(self.root) if path.isdir(path.join(self.root, site))]
+        folders = os.listdir(self.root)
+        return [
+            site for site in folders if path.isdir(path.join(self.root, site))
+        ]
     
     def get_deployment_path(self, deployment, site):
         site = "site" + str(site).zfill(2)
@@ -119,8 +121,13 @@ class Dataset():
                     df = pd.read_csv(f)
                 return df
             
+    def get_wav_length(self, filename):
+        with audioread.audio_open(filename) as f:
+            duration = f.duration  # Duration in seconds
+        return duration 
+                
     @staticmethod
-    def extract_segment(file, output_file, time_segment: tuple[int]):
+    def extract_segment(file, output_file, time_segment: tuple):
         """Save a time segment of a sound file to the given output
 
         Args:
@@ -137,59 +144,3 @@ class Dataset():
         sf.write(output_file, y_segment, sr)
  
 
-
-
-class SpectrogramSequence(Sequence):
-    # TODO overlapping chunks
-    """
-
-    """
-
-    def __init__(self, annotations_df, ds: Dataset, chunk_len_seconds=10, batch_size=32, sr=96_000):
-        self.annotations = annotations_df
-        self.ds = ds
-        self.batch_size = batch_size
-
-        self.sr = sr
-        self.chunk_len = int(librosa.time_to_frames(chunk_len_seconds, sr=sr))
-        
-        self.chunk_info = [] # (recording, start_frame, end_frame, y)
-        
-        self.label_tokens = LabelBinarizer().fit(self.annotations['label']).classes_
-        
-        # !!
-        print("ensure that this is a tokenization: ", self.label_tokens, self.label_tokens["fast_trill_6khz"])
-        
-        
-        for recording, df in self.annotations.groupby('recording'): 
-                    
-            p = Path(ds.get_data_path(df['deployment'], df['site'])) / recording
-            y, sr = librosa.load(p, sr=sr)
-            
-            S = librosa.stft(y)
-            S_db = librosa.amplitude_to_db(np.abs(S), ref=np.max)
-            
-            # start and end time in seconds
-            start_time = librosa.frames_to_time(start_idx, sr=sr)
-            end_time = librosa.frames_to_time(start_idx + self.chunk_len, sr=sr)
-            
-            for start_idx in range(0, S_db.shape[1], self.chunk_len):
-                y = np.zeros(shape=(self.chunk_len, 4), dtype=np.int32)
-                
-                for row, i in df.iterrows():
-                    if end_time > row['min_t'] > start_time or end_time > row['max_t'] > start_time:
-
-                        label_start_frame = librosa.frames_to_time(row['min_t'] - start_time, sr=sr)
-                        label_end_frame = librosa.frames_to_time(row['max_t'] - end_time, sr=sr)
-                        
-                        # Set labels in the y map for frames covering the event
-                        y[self.label_tokens[row["label"]], label_start_frame:label_end_frame + 1] = 1  # +1 to include the end frame
-
-                self.chunk_info.append(
-                    (recording, start_idx, start_idx + self.chunk_len, y)
-                )
-        
-
-    # def __len__(self):
-    #     return self.datalen // self.batch_size
-           

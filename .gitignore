@@ -1,4 +1,5 @@
 untracked
 correlations/segmetns/
 .venv
+env
 testing.ipynb
