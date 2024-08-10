@@ -1,6 +1,7 @@
 
 from tensorflow.keras.utils import Sequence
 from sklearn.preprocessing import LabelBinarizer
+from maad import sound, util
 from util import Dataset
 import librosa
 from pathlib import Path
@@ -8,6 +9,8 @@ from config import *
 import numpy as np
 import time
 from tqdm import tqdm
+import soundfile as sf
+import pandas as pd
 
 class SpectrogramSequence(Sequence):
     # TODO overlapping chunks
@@ -24,7 +27,7 @@ class SpectrogramSequence(Sequence):
     }
 
     def __init__(self, annotations_df, ds: Dataset, chunk_len_seconds=10, 
-                 batch_size=32, sr=96_000, label_tokens=DEFAULT_TOKENS):
+                 batch_size=32, sr=96_000, label_tokens=DEFAULT_TOKENS, save_sequence=True):
         
         self.annotations = annotations_df
         self.ds = ds
@@ -66,35 +69,63 @@ class SpectrogramSequence(Sequence):
                 self.chunk_info.append(
                     ((site, depl, recording, start_frame, start_frame + self.chunk_len), y)
                 )
-        
+
+        # convert instance data to df
+        if save_sequence:
+            data = [(*chunk[0], chunk[1]) for chunk in self.chunk_info]  # Extract and flatten the tuples
+            df = pd.DataFrame(data, columns=["site", "depl", "recording", "start_frame", "end_frame", "y"])
+            p = OUTPUT_DIR / 'intermediate' / 'instance_data.csv'
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.touch()
+            df.to_csv(p)
+
 
     # def __len__(self):
     #     return self.datalen // self.batch_size
            
+    # TODO parallelize? read in segment only in sf? 
     def __getitem__(self, idx):
         batch = self.chunk_info[idx * self.batch_size: (idx + 1) * self.batch_size]
-        seen_recordings = set()
         batch_x, batch_y = [], []
 
-        for (site, depl, recording, start_frame, end_frame), y in batch:
-            if recording not in seen_recordings:
+        nperseg = 1024
+        noverlap = 512
+        window = "hann"
+        db_range = 80
 
-                print("loading new recording: ",  recording, end='')
+        prev = None
+        S_db = None
+        for (site, depl, recording, start_frame, end_frame), y in tqdm(batch, desc='loading in batch'):
+            cur = recording
+            
+            if cur != prev:
+                tqdm.write("loading new recording: ",  recording,  flush=True)
                 start_time = time.time()
 
-                y, _ = librosa.load(Path(self.ds.get_data_path(depl, site)) / recording, sr=self.sr)
+                # load the file in
+                recording_path = Path(self.ds.get_data_path(depl, site)) / recording
+                y, samplerate = sf.read(recording_path)      
                 
-                print("\rstft ", recording, end='')
-                S = librosa.stft(y)
+                if samplerate != self.sr:
+                    print("!!! foreign sample rate read by soundfile: ", samplerate)
                 
-                print("\rconverting to db ", recording, end='')
-                S_db = librosa.amplitude_to_db(np.abs(S), ref=np.max)
-
+                if len(y.shape) > 1:
+                    y = np.mean(y, axis=1)
+        
+                tqdm.write("\rstft ", recording, flush=True)
+                Sxx_template, _, _, _ = sound.spectrogram(
+                    y, self.sr, window, nperseg, noverlap
+                )
+                
+                tqdm.write("\rconverting to db ", recording,  flush=True)
+                S_db = util.power2dB(Sxx_template, db_range)
+        
+                # S_db = librosa.amplitude_to_db(np.abs(S), ref=np.max)
                 elapsed_time = time.time() - start_time
-                print(f"\rLoaded {recording} in {elapsed_time:.2f} seconds")
-                seen_recordings.add(recording)
+                tqdm.write(f"\rLoaded {recording} in {elapsed_time:.2f} seconds",  flush=True)
 
             batch_x.append(S_db[:, start_frame:end_frame])
             batch_y.append(y)
+            prev = cur
     
         return np.array(batch_x), np.array(batch_y)
