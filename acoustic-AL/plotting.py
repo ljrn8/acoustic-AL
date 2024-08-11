@@ -23,18 +23,18 @@ from IPython.display import Audio, display
 from pathlib import Path
 
 def view_spectrogram(
-    file_path: str | Path = None,
+    file_path: str = None,
     recording_id: str = None,
     annotations: list = None,
-    time_segment: tuple[int] = None,
-    frequency_range: tuple[int] = None,
+    time_segment: tuple = None,
+    frequency_range: tuple = None,
     playback: bool = False,
     ax: matplotlib.axes = None,
     sr: int = 96_000,
     title: str = None,
     y_lim: int = None,
     save_as: str = None,
-    figsize: tuple[int] = None,
+    figsize: tuple = None,
     show_plot: bool = True,
     **kwargs
 ) -> matplotlib.axes:
@@ -126,8 +126,8 @@ def view_spectrogram(
 
 
 def plot_correlations(
-    correlations_file: str | Path,
-    reference_wav: str | Path = None,
+    correlations_file: str,
+    reference_wav: str= None,
     duration: int = None,
     deployment: int = 1,
     site: int = 1,

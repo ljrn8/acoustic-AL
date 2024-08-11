@@ -13,7 +13,16 @@ from config import *
 from pathlib import Path
 import wave
 import audioread
+import time
+from contextlib import contextmanager
 
+@contextmanager
+def timeit():
+    start_time = time.time()
+    yield
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Elapsed time: {elapsed_time:.6f} seconds")
 
 class BoundedBox():
     """Optional, Convenient Spectrogam Bounded Box represenation. 
@@ -91,29 +100,29 @@ class Dataset():
         self.root = dataset_root or DATA_ROOT
         self.sites = self._get_sites()
         
-    def _get_sites(self):
+    def _get_sites(self) -> list:
         folders = os.listdir(self.root)
         return [
             site for site in folders if path.isdir(path.join(self.root, site))
         ]
     
-    def get_deployment_path(self, deployment, site):
+    def get_deployment_path(self, deployment, site) -> Path:
         site = "site" + str(site).zfill(2)
-        return path.join(self.root, site, "deployment_" + str(deployment).zfill(3))
+        return Path(self.root) / site / ("deployment_" + str(deployment).zfill(3))
     
-    def get_data_path(self, deployment, site):
-        return Path(self.get_deployment_path(deployment, site)) / 'Data'
+    def get_data_path(self, deployment, site) -> Path:
+        return self.get_deployment_path(deployment, site) / 'Data'
 
-    def get_recordings(self, deployment, site):
+    def get_recordings(self, deployment, site) -> list:
         return os.listdir(self.get_data_path(deployment, site))
     
-    def get_duration(self, file, deployment, site, sr=10_000):
+    def get_duration(self, file, deployment, site, sr=10_000) -> float:
         y, sr = librosa.load(
             Path(self.get_deployment_path(deployment, site)) / "Data" / file, sr=sr
         )
         return librosa.get_duration(y=y, sr=sr)
 
-    def get_deployment_summary(self, deployment, site):
+    def get_deployment_summary(self, deployment, site) -> pd.DataFrame:
         depl = self.get_deployment_path(deployment, site)
         for i in os.listdir(depl):
             if "summary" in i.lower():
@@ -121,9 +130,10 @@ class Dataset():
                     df = pd.read_csv(f)
                 return df
             
-    def get_wav_length(self, filename):
+    @staticmethod
+    def get_wav_length(filename) -> float:
         with audioread.audio_open(filename) as f:
-            duration = f.duration  # Duration in seconds
+            duration = f.duration 
         return duration 
                 
     @staticmethod
