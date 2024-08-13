@@ -3,3 +3,4 @@ correlations/segmetns/
 .venv
 env
 testing.ipynb
+output/intermediate

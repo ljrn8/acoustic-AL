@@ -17,12 +17,14 @@ import time
 from contextlib import contextmanager
 
 @contextmanager
-def timeit():
+def timeit(priori_message=None):
+    if priori_message:
+        print(priori_message, end=" ", flush=True)
     start_time = time.time()
     yield
     end_time = time.time()
     elapsed_time = end_time - start_time
-    print(f"Elapsed time: {elapsed_time:.6f} seconds")
+    print(f"\t\t\t| Time Taken: {elapsed_time:.6f} seconds", flush=True)
 
 class BoundedBox():
     """Optional, Convenient Spectrogam Bounded Box represenation. 

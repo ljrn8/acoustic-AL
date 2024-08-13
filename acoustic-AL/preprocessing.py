@@ -36,93 +36,106 @@ class SpectrogramSequence(Sequence):
     window = "hann"
     db_range = 80
 
+
     def __init__(self, annotations_df, ds: Dataset, chunk_len_seconds=10, 
-                 batch_size=32, sr=96_000, label_tokens=DEFAULT_TOKENS, save_sequence=False):
+                 batch_size=32, sr=96_000, label_tokens=DEFAULT_TOKENS):
         
         self.annotations = annotations_df
         self.ds = ds
         self.batch_size = batch_size
         self.sr = sr
-        self.chunk_len = int(librosa.time_to_frames(chunk_len_seconds, sr=sr))
-        
-        self.chunk_info = [] # (site, depl, recording, start_frame, end_frame, y)
-        
-        # self.label_tokens = LabelBinarizer().fit(self.annotations['label']).classes_
         self.label_tokens = label_tokens
+        self.chunk_info = [] 
         
-        # annotations per recording
+        # chunk length in frames
+        self.chunk_len = librosa.time_to_frames(chunk_len_seconds, sr=sr,
+                             hop_length=self.noverlap,
+                            n_fft=self.nperseg)
         
-        for recording, df in tqdm(self.annotations.groupby('recording'), desc='preparing data'): 
-            depl, site = int(df['deployment'].iloc[0]), int(df['site'].iloc[0])
+        print("n# frames in chunk: ", self.chunk_len )
+        
+        # iterate over each recording and its annotations dataframe
+        for recording, annotations_group_df in tqdm(self.annotations.groupby('recording'), desc='preparing data'): 
+            
+            depl, site = int(annotations_group_df['deployment'].iloc[0]), int(annotations_group_df['site'].iloc[0])
             p = Path(ds.get_data_path(depl, site)) / recording
 
             # max time
-            frames = librosa.time_to_frames(df["recording_length"].iloc[0])
+            n_frames = librosa.time_to_frames(annotations_group_df["recording_length"].iloc[0], sr=self.sr,
+                                              hop_length=self.noverlap,
+                                                n_fft=self.nperseg)
 
-            for start_frame in range(0, frames-1, self.chunk_len):
-                
-                start_time = librosa.frames_to_time(start_frame, sr=sr)
-                end_time = librosa.frames_to_time(start_frame + self.chunk_len, sr=sr)
+            # encode the entire sample (time step) classification matrix
+            Y_all = self._extract_samplewise_annotations(annotations_group_df, n_frames)
             
-                y = np.zeros(shape=(self.chunk_len, 4), dtype=np.int32)
+            # cache X, Y for each seperate chunk, grouped by recording
+            # NOTE just group these by recording not chunk?
+            for start_frame in range(0, n_frames - self.chunk_len, self.chunk_len):
                 
-                for i, row in df.iterrows():
-                    if end_time > row['min_t'] > start_time or end_time > row['max_t'] > start_time:
-
-                        label_start_frame = librosa.time_to_frames(row['min_t'] - start_time, sr=sr)
-                        label_end_frame = librosa.time_to_frames(row['max_t'] - start_time, sr=sr)
-                        
-                        # Set labels in the y map for frames covering the event
-                        row_index = self.label_tokens[row["label"]]
-                        y[label_start_frame:label_end_frame + 1, row_index] = 1   # !!
-
+                end_frame = start_frame + self.chunk_len
+                X_info = (site, depl, recording, start_frame, end_frame)
+                
                 self.chunk_info.append(
-                    ((site, depl, recording, start_frame, start_frame + self.chunk_len), y)
+                    (X_info, Y_all[start_frame:end_frame, :])
                 )
+        
 
-        # convert instance data to df
-        if save_sequence:
-            data = [(*chunk[0], chunk[1]) for chunk in self.chunk_info]
-            df = pd.DataFrame(data, columns=["site", "depl", "recording", "start_frame", "end_frame", "y"])
-            p = INTERMEDIATE / 'instance_data.csv'
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.touch()
-            df.to_csv(p)
+        # convert instance data to df and save locally 
+        # TODO binarize
+        # if save_sequence:
+        #     data = [(*chunk[0], chunk[1]) for chunk in self.chunk_info]
+        #     annotations_group_df = pd.DataFrame(data, columns=["site", "depl", "recording", "start_frame", "end_frame", "y"])
+        #     p = INTERMEDIATE / 'instance_data.csv'
+        #     p.parent.mkdir(parents=True, exist_ok=True)
+        #     p.touch()
+        #     annotations_group_df.to_csv(p)
 
 
+    def _extract_samplewise_annotations(self, rec_df, n_frames) -> np.array:
+        Y_recording = np.zeros(shape=(n_frames, 4))
+        for (label, label_index) in self.label_tokens.items():
+            label_annotations = rec_df[rec_df["label"] == label]
+            
+            label_start_frames = librosa.time_to_frames(label_annotations["min_t"], 
+                                    sr=self.sr, hop_length=self.noverlap, n_fft=self.nperseg)
+            label_end_frames = librosa.time_to_frames(label_annotations["max_t"], 
+                                    sr=self.sr, hop_length=self.noverlap, n_fft=self.nperseg)
+            
+            for start, end in zip(label_start_frames, label_end_frames):
+                Y_recording[start: end, label_index] = 1 
+        
+        return Y_recording
+    
+    
     def __len__(self):
         return len(self.chunk_info) // self.batch_size
     
           
-    def _load_and_process_recording(self, recording_info):
+    def _load_and_process_recording(self, recording_info) -> np.array:
         site, depl, recording, start_frame, end_frame = recording_info
 
         # load the file in
-        print("loading new recording: " +  recording, flush=True)
-        with timeit():
+        with timeit("loading new recording: " +  recording):
             start_time = time.time()
             recording_path = self.ds.get_data_path(depl, site) / recording
             s, samplerate = sf.read(recording_path)   
             # s, _ = librosa.load(recording_path, sr=self.sr)
         
         # resample
-        print("resampling", flush=True)
-        with timeit():
+        with timeit("resampling " + recording):
             if samplerate != self.sr:
-                # num_samples = int(len(s) * self.sr / samplerate)
                 s = resample_poly(s, self.sr, samplerate)
+                
             if len(s.shape) > 1:
                 s = np.mean(s, axis=1)
 
         # stft
-        print("\rstft " + recording, flush=True)
-        with timeit():
+        with timeit("stft " + recording):
             Sxx_template, _, _, _ = sound.spectrogram(
                 s, self.sr, self.window, self.nperseg, self.noverlap
             )
         
-        print("\rconverting to db " + recording, flush=True)
-        with timeit():
+        with timeit("converting to db " + recording):
             S_db = util.power2dB(Sxx_template, self.db_range)
 
         # S_db = librosa.amplitude_to_db(np.abs(S), ref=np.max)
@@ -136,50 +149,27 @@ class SpectrogramSequence(Sequence):
         batch = self.chunk_info[idx * self.batch_size: (idx + 1) * self.batch_size]
         batch_x = []
         batch_y = []
+        
 
-        prev= None
+        prev = None
         S_db = None
-        for x_info, y in batch:
-            site, depl, recording, start_frame, end_frame = x_info
+        for X_info, Y in batch:
+            site, depl, recording, start_frame, end_frame = X_info
             cur = recording
             if cur != prev:
-                S_db = self._load_and_process_recording(x_info)
+                S_db = self._load_and_process_recording(X_info)
             
+            assert S_db is not None # sanity check
+            
+            S_slice = S_db[:, start_frame:end_frame]
+            
+            assert S_slice.shape[1] == Y.shape[0], 'spectrogram chunk shape abnormal for ' + X_info
+            
+            batch_x.append(S_slice)
+            batch_y.append(Y)
             prev = cur
-            batch_x.append(S_db[:, start_frame:end_frame])
-            batch_y.append(y)
 
         return np.array(batch_x), np.array(batch_y)
     
     
     
-    # TODO ?
-    def __getitem_threaded__(self, idx):
-        batch = self.chunk_info[idx * self.batch_size: (idx + 1) * self.batch_size]
-        batch_x = []
-        batch_y = []
-
-        nperseg = 1024
-        noverlap = 512
-        window = "hann"
-        db_range = 80
-
-        with ProcessPoolExecutor() as executor:
-            # Submit tasks for each recording in the batch
-            future_to_recording = {
-                executor.submit(self._load_and_process_recording, (site, depl, recording, start_frame, end_frame), window, nperseg, noverlap, db_range): (site, depl, recording)
-                    for (site, depl, recording, start_frame, end_frame), _ in batch
-            }
-
-            # Process results as they complete
-            for future in tqdm(as_completed(future_to_recording), total=len(future_to_recording), desc='Processing batch'):
-                site, depl, recording = future_to_recording[future]
-                try:
-                    S_batch, y = future.result()
-                    batch_x.append(S_batch)
-                    batch_y.append(y)
-                    
-                except Exception as e:
-                    tqdm.write(f"Error loading {recording}: {e}", flush=True)
-
-        return np.array(batch_x), np.array(batch_y)
