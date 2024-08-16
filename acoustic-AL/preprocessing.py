@@ -1,6 +1,5 @@
 
 from tensorflow.keras.utils import Sequence
-from sklearn.preprocessing import LabelBinarizer
 from maad import sound, util
 from util import Dataset, timeit
 import librosa
@@ -13,16 +12,12 @@ import soundfile as sf
 import pandas as pd
 from scipy.signal import resample_poly
 
-
-from concurrent.futures import ProcessPoolExecutor, as_completed
+import logging; logger = logging.getLogger(__name__)
 
 
 class SpectrogramSequence(Sequence):
     # TODO overlapping chunks
     # TODO random order (?)
-    """
-
-    """
     
     DEFAULT_TOKENS = { # NOTE 1hot?
         'fast_trill_6khz': 0,
@@ -36,9 +31,13 @@ class SpectrogramSequence(Sequence):
     window = "hann"
     db_range = 80
 
-
-    def __init__(self, annotations_df, ds: Dataset, chunk_len_seconds=10, 
-                 batch_size=32, sr=96_000, label_tokens=DEFAULT_TOKENS):
+    def __init__(
+        self,  
+        annotations_df: pd.DataFrame = pd.read_csv(ANNOTATIONS / 'initial_dataset_7depl_metadata.csv'),
+        ds: Dataset = Dataset(DATA_ROOT), 
+        chunk_len_seconds=10, 
+        batch_size=32, sr=96_000, label_tokens=DEFAULT_TOKENS
+    ):
         
         self.annotations = annotations_df
         self.ds = ds
@@ -51,12 +50,10 @@ class SpectrogramSequence(Sequence):
         self.chunk_len = librosa.time_to_frames(chunk_len_seconds, sr=sr,
                              hop_length=self.noverlap,
                             n_fft=self.nperseg)
-        
         print("n# frames in chunk: ", self.chunk_len )
         
         # iterate over each recording and its annotations dataframe
         for recording, annotations_group_df in tqdm(self.annotations.groupby('recording'), desc='preparing data'): 
-            
             depl, site = int(annotations_group_df['deployment'].iloc[0]), int(annotations_group_df['site'].iloc[0])
             p = Path(ds.get_data_path(depl, site)) / recording
 
@@ -78,24 +75,12 @@ class SpectrogramSequence(Sequence):
                 self.chunk_info.append(
                     (X_info, Y_all[start_frame:end_frame, :])
                 )
-        
-
-        # convert instance data to df and save locally 
-        # TODO binarize
-        # if save_sequence:
-        #     data = [(*chunk[0], chunk[1]) for chunk in self.chunk_info]
-        #     annotations_group_df = pd.DataFrame(data, columns=["site", "depl", "recording", "start_frame", "end_frame", "y"])
-        #     p = INTERMEDIATE / 'instance_data.csv'
-        #     p.parent.mkdir(parents=True, exist_ok=True)
-        #     p.touch()
-        #     annotations_group_df.to_csv(p)
 
 
     def _extract_samplewise_annotations(self, rec_df, n_frames) -> np.array:
         Y_recording = np.zeros(shape=(n_frames, 4))
         for (label, label_index) in self.label_tokens.items():
             label_annotations = rec_df[rec_df["label"] == label]
-            
             label_start_frames = librosa.time_to_frames(label_annotations["min_t"], 
                                     sr=self.sr, hop_length=self.noverlap, n_fft=self.nperseg)
             label_end_frames = librosa.time_to_frames(label_annotations["max_t"], 
@@ -114,14 +99,11 @@ class SpectrogramSequence(Sequence):
     def _load_and_process_recording(self, recording_info) -> np.array:
         site, depl, recording, start_frame, end_frame = recording_info
 
-        # load the file in
         with timeit("loading new recording: " +  recording):
             start_time = time.time()
             recording_path = self.ds.get_data_path(depl, site) / recording
             s, samplerate = sf.read(recording_path)   
-            # s, _ = librosa.load(recording_path, sr=self.sr)
         
-        # resample
         with timeit("resampling " + recording):
             if samplerate != self.sr:
                 s = resample_poly(s, self.sr, samplerate)
@@ -129,7 +111,6 @@ class SpectrogramSequence(Sequence):
             if len(s.shape) > 1:
                 s = np.mean(s, axis=1)
 
-        # stft
         with timeit("stft " + recording):
             Sxx_template, _, _, _ = sound.spectrogram(
                 s, self.sr, self.window, self.nperseg, self.noverlap
@@ -149,10 +130,12 @@ class SpectrogramSequence(Sequence):
         batch = self.chunk_info[idx * self.batch_size: (idx + 1) * self.batch_size]
         batch_x = []
         batch_y = []
-        
-
         prev = None
         S_db = None
+        
+        running_X_batch_len = np.zeros(2, dtype=np.float)
+        running_Y_batch_len = np.zeros(2, dtype=np.float)
+        
         for X_info, Y in batch:
             site, depl, recording, start_frame, end_frame = X_info
             cur = recording
@@ -160,14 +143,18 @@ class SpectrogramSequence(Sequence):
                 S_db = self._load_and_process_recording(X_info)
             
             assert S_db is not None # sanity check
-            
             S_slice = S_db[:, start_frame:end_frame]
-            
             assert S_slice.shape[1] == Y.shape[0], 'spectrogram chunk shape abnormal for ' + X_info
-            
             batch_x.append(S_slice)
             batch_y.append(Y)
             prev = cur
+
+            # debugging
+            running_X_batch_len += S_slice.shape
+            running_Y_batch_len += Y.shape
+
+        logging.debug(f'batch average spectrogram chunk shape: {(running_X_batch_len / 32)}')
+        logging.debug(f'batch average Y shape: {(running_Y_batch_len / 32)}')
 
         return np.array(batch_x), np.array(batch_y)
     

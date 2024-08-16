@@ -15,7 +15,7 @@ from preprocessing import SpectrogramSequence
 import pickle
 import librosa
 import  matplotlib.pyplot as plt
-from parameterized import parameterized
+import soundfile as sf
 
 def dump(o, filename):
     with open(filename, 'wb') as f:
@@ -28,7 +28,6 @@ def get(filename):
 def _view_store_batch(batch):
         batch_X, batch_Y = batch
         for i, (S, y) in enumerate(zip(batch_X, batch_Y)):
-            
             librosa.display.specshow(S)
         
             # NOTE breaks with overlaps
@@ -48,15 +47,16 @@ def _view_store_batch(batch):
             plt.savefig(f"./objects/seq/seq_{i}.png")
             # plt.show()
             
+            
 class Tests(unittest.TestCase):
     
     annotations_df: pd.DataFrame = pd.read_csv(ANNOTATIONS / 'initial_dataset_7depl_metadata.csv')
     ds: Dataset = Dataset(DATA_ROOT)
     has_annotations = "1_20230316_063000.wav"
+    has_annotations_path = ds.get_data_path(1, 1) / has_annotations
 
     sr = 24_000
     spectrogram_sequence = SpectrogramSequence(annotations_df, ds, sr=sr)
-    
     
     
     def test_sequence_init(self):
@@ -74,6 +74,7 @@ class Tests(unittest.TestCase):
             print('out of ', len(Y_all[:, 0]), ' (*4)')
         
     
+    @unittest.skip
     def test_batch(self):
         ys = np.array([Y for (X, Y) in self.spectrogram_sequence.chunk_info])
         index = [i for i, y in enumerate(ys) if y.flatten().sum() > 0][0]

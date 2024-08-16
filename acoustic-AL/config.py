@@ -3,11 +3,16 @@ All static variables can be assigned here
 """
 
 import os
-from os.path import join
+import logging; logger = logging.getLogger(__name__)
 from dotenv import load_dotenv
 from pathlib import Path
-
 load_dotenv()
+
+# logging
+LOG_LEVEL = os.getenv("LOG_LEVEL") or "DEBUG"
+level = getattr(logging, LOG_LEVEL.upper())
+logging.basicConfig(level=level)
+logger.debug('Debug logging active')
 
 # Local Directories
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

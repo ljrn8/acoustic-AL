@@ -11,15 +11,16 @@ import pandas as pd
 import soundfile as sf
 from config import *
 from pathlib import Path
-import wave
 import audioread
 import time
 from contextlib import contextmanager
+import logging; logger = logging.getLogger(__name__)
 
 @contextmanager
 def timeit(priori_message=None):
     if priori_message:
         print(priori_message, end=" ", flush=True)
+        
     start_time = time.time()
     yield
     end_time = time.time()
