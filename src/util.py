@@ -5,7 +5,7 @@
 import os
 from os import path
 
-from .config import *
+from config import *
 
 import librosa
 import numpy as np

@@ -17,16 +17,14 @@ import pickle
 from os import path
 from pathlib import Path
 
-from .plotting import view_spectrogram
-from .util import BoundedBox, Dataset
-from .config import CORRELATIONS
+from plotting import view_spectrogram
+from util import BoundedBox, Dataset
+from config import CORRELATIONS
 
-import librosa
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pygetwindow as gw
-from IPython.display import Audio, display
+# import pygetwindow as gw
 from maad import sound, util
 from maad.rois import template_matching
 
@@ -204,9 +202,31 @@ class Template(BoundedBox):
 
             self.raw_correlations = all_corrs
             return all_corrs
+    
+    @staticmethod
+    def filter_correlations(df, thresh=0.65, overlap_cutoff=0.5):
+        """filter the given correlations dataframe but xcorrcoef threshhold and remove near duplicates
 
-    def verify_correlations(self, output_csv, custom_df=None):
-        """!! NOTE: unused function, remove before publication"""
+        Args:
+            df (Dataframe): dataframe expressing correlations.
+            thresh (float, optional): xcorrcoef threshhold. Defaults to 0.65.
+            overlap_cutoff (float, optional): seconds by which nearby correlations are removed leaving
+                only the first occurance. Defaults to 0.5.
+
+        Returns:
+            Dataframe: filtered correlations
+        """
+        print("previous n# correlations: ", len(df))
+        df_filtered = df[df["xcorrcoef"] >= thresh]
+        df_filtered = df_filtered[
+            (df_filtered["min_t"].isna())
+            | (df_filtered["min_t"].diff() ** 2 > overlap_cutoff**2)
+        ]
+        print("filtered n# correlations: ", len(df_filtered))
+        return df_filtered
+
+    """def verify_correlations(self, output_csv, custom_df=None):
+        #!! NOTE: unused function, remove before publication
 
         if Path(output_csv).exists():
             print(f"'{output_csv}' already exists, appending")
@@ -310,26 +330,6 @@ class Template(BoundedBox):
                         f.write("\n")
 
                 plt.clf()
-                plt.close()
+                plt.close()"""
 
-    @staticmethod
-    def filter_correlations(df, thresh=0.65, overlap_cutoff=0.5):
-        """filter the given correlations dataframe but xcorrcoef threshhold and remove near duplicates
-
-        Args:
-            df (Dataframe): dataframe expressing correlations.
-            thresh (float, optional): xcorrcoef threshhold. Defaults to 0.65.
-            overlap_cutoff (float, optional): seconds by which nearby correlations are removed leaving
-                only the first occurance. Defaults to 0.5.
-
-        Returns:
-            Dataframe: filtered correlations
-        """
-        print("previous n# correlations: ", len(df))
-        df_filtered = df[df["xcorrcoef"] >= thresh]
-        df_filtered = df_filtered[
-            (df_filtered["min_t"].isna())
-            | (df_filtered["min_t"].diff() ** 2 > overlap_cutoff**2)
-        ]
-        print("filtered n# correlations: ", len(df_filtered))
-        return df_filtered
+    

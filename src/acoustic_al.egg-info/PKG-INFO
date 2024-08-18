@@ -1,0 +1,37 @@
+Metadata-Version: 2.1
+Name: acoustic_al
+Version: 0.1
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: ipython
+Requires-Dist: Pathlib
+Requires-Dist: librosa
+Requires-Dist: matplotlib
+Requires-Dist: numpy==1.23.0
+Requires-Dist: pandas
+Requires-Dist: PyGetWindow
+Requires-Dist: python-dotenv
+Requires-Dist: soundfile
+Requires-Dist: scikit-maad
+Requires-Dist: tensorflow
+
+## Active learning: human-in-the-loop strategies to efficiently analyse big acoustic datasets
+
+_Supervised by – Dr Paul Nguyen Hong Duc, Dr Evgeny Sidenko, Prof. Christine Erbe_
+
+[insert abstract]
+
+### Project Structure
+The code currently stands as a resuable module under acoustic-AL, training/software scripts have yet to be implemented. 
+
+```
+. 
+├── acoustic-AL (all resuable utility functions/classes) 
+├── figures  
+├── models (model files / checkpoints) 
+├── notebooks (all jupyter notebooks) 
+├── output (intermediate data and annotations) 
+│   ├── annotations 
+│   └── correlations 
+├── scripts
+```

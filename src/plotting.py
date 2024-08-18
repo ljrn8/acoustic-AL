@@ -21,7 +21,7 @@ import pandas as pd
 from IPython.display import Audio, display
 from pathlib import Path
 
-from .util import Dataset
+from util import Dataset
 
 
 def view_spectrogram(

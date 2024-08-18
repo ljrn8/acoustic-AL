@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=64.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "acoustic_al"
+version = "0.1"
+requires-python = ">=3.7" 
+readme = "README.md"
+dependencies = [
+    "ipython",
+    "Pathlib",
+    "librosa",
+    "matplotlib",
+    "numpy==1.23.0",
+    "pandas",
+    "PyGetWindow", # ?
+    "python-dotenv",
+    "soundfile",
+    "scikit-maad",
+    "tensorflow"
+]
+
+# [tool.setuptools]
+# packages = ["my_package"]
+# include_package_data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["acoustic_al"]

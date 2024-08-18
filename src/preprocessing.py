@@ -2,8 +2,8 @@ from tensorflow.keras.utils import Sequence
 from maad import sound, util
 import librosa
 
-from .config import *
-from .util import Dataset, timeit
+from config import *
+from util import Dataset, timeit
 
 from pathlib import Path
 import numpy as np
