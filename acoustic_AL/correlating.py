@@ -32,14 +32,14 @@ from maad.rois import template_matching
 
 
 class Template(BoundedBox):
-    """Sample Template used for cross correlating over audio data 
+    """Sample Template used for cross correlating over audio data
 
     Args:
-        source_recording_path (str): 
+        source_recording_path (str):
             path to the audio file containing the segment
-        time_segment (tuple[int]): 
+        time_segment (tuple[int]):
             (start, end) in seconds for the segment
-        frequency_lims (tuple[int]): 
+        frequency_lims (tuple[int]):
             (high, low) frequency limits fro the segment in hz
 
     Attributes:
@@ -47,7 +47,7 @@ class Template(BoundedBox):
         incremental_correlations (list): deployment wize output after running Template.template_match()
 
     """
-    
+
     raw_correlations: pd.DataFrame = None
     incremental_correlations = {}
 
@@ -78,15 +78,15 @@ class Template(BoundedBox):
             just_one_recording (str, optional): single recording filename for testing purposes.
             n_deployments (int, optional): number of deployments to run the correlations for.
             site (int, optional): site number. Defaults to 1.
-            thresh (float, optional): 
+            thresh (float, optional):
                 NNC threshhold by which a match is recorded. Defaults to 0.5.
-            save_incremental (bool, optional): 
+            save_incremental (bool, optional):
                 incrementally save correlations incase of runtime interruption. Defaults to True.
 
         Returns:
             pd.Dataframe: dataframe containing template matches and metadata
         """
-        
+
         if not (just_one_recording or n_deployments):
             raise RuntimeError("recording or n_files or n_deployments required")
 
@@ -205,11 +205,9 @@ class Template(BoundedBox):
             self.raw_correlations = all_corrs
             return all_corrs
 
-
     def verify_correlations(self, output_csv, custom_df=None):
-        """!! NOTE: unused function, remove before publication
-        """
-        
+        """!! NOTE: unused function, remove before publication"""
+
         if Path(output_csv).exists():
             print(f"'{output_csv}' already exists, appending")
 
@@ -319,7 +317,7 @@ class Template(BoundedBox):
         """filter the given correlations dataframe but xcorrcoef threshhold and remove near duplicates
 
         Args:
-            df (Dataframe): dataframe expressing correlations.  
+            df (Dataframe): dataframe expressing correlations.
             thresh (float, optional): xcorrcoef threshhold. Defaults to 0.65.
             overlap_cutoff (float, optional): seconds by which nearby correlations are removed leaving
                 only the first occurance. Defaults to 0.5.

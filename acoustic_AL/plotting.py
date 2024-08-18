@@ -23,6 +23,7 @@ from pathlib import Path
 
 from .util import Dataset
 
+
 def view_spectrogram(
     file_path: str = None,
     recording_id: str = None,
@@ -37,14 +38,14 @@ def view_spectrogram(
     save_as: str = None,
     figsize: tuple = None,
     show_plot: bool = True,
-    **kwargs
+    **kwargs,
 ) -> matplotlib.axes:
     """Plot the given spectrogram with some convenient options
 
     Args:
-        file_path (str | Path, optional): file path of the .wav file. 
+        file_path (str | Path, optional): file path of the .wav file.
         recording_id (str, optional): recording filename in the dataset.
-        annotations (list, optional): 
+        annotations (list, optional):
             display annotations on the spectrogram given in the form [(label, x, y, width, height), ..]
         time_segment (tuple, optional): start, end integers in seconds spectrogram within the given file.
         frequency_range (tuple, optional): low, high frequency limits in hertz.
@@ -56,26 +57,27 @@ def view_spectrogram(
         save_as (str, optional): save the figure as the given file/path.
         figsize (tuple, optional): figure size (width, height).
         show_plot (bool, optional): call plt.show(). Defaults to True.
-        
+
     Kwargs:
         any other keyword arguments are accepted by 'librosa.display.specshow'
 
     Returns:
-        matplotlib.axes  
+        matplotlib.axes
     """
-    
+
     if not (file_path or recording_id) and S is None:
         return ValueError("file not specified")
 
     show_plot = ax is None
-    
+
     if recording_id:
-        if not recording_id.endswith('.wav'): recording_id += ".wav"
+        if not recording_id.endswith(".wav"):
+            recording_id += ".wav"
         file_path = path.join(Dataset().get_data_path(1, 1), recording_id)
 
     if not ax:
         fig, ax = plt.subplots(figsize=figsize)
-    
+
     if time_segment:
         start, end = time_segment
         widen = 0.6
@@ -88,8 +90,8 @@ def view_spectrogram(
     n_fft = 2048
     hop_length = n_fft // 4
     y = y[start_sample:end_sample]
-    S = librosa.stft(y, n_fft=n_fft, hop_length=hop_length) # cut out time seg
-    
+    S = librosa.stft(y, n_fft=n_fft, hop_length=hop_length)  # cut out time seg
+
     S_db = librosa.amplitude_to_db(np.abs(S), ref=np.max)
 
     if frequency_range:
@@ -105,17 +107,26 @@ def view_spectrogram(
         ax.axvline(
             x=S.shape[1] - int(widen * sr / hop_length), color="g", linestyle="-"
         )
-        
+
     img = librosa.display.specshow(S_db, y_axis="linear", ax=ax, sr=sr, **kwargs)
-    
+
     ax.set(title=title or file_path or recording_id)
-    
+
     if annotations:
-        for (label, x, y, width, height) in annotations:
-            rect = patches.Rectangle((x, y), width, height, linewidth=2, edgecolor='red', facecolor='none')
+        for label, x, y, width, height in annotations:
+            rect = patches.Rectangle(
+                (x, y), width, height, linewidth=2, edgecolor="red", facecolor="none"
+            )
             ax.add_patch(rect)
-            ax.text(x, y, label, color='white', fontsize=12, bbox=dict(facecolor='red', alpha=0.5))
-        
+            ax.text(
+                x,
+                y,
+                label,
+                color="white",
+                fontsize=12,
+                bbox=dict(facecolor="red", alpha=0.5),
+            )
+
     if save_as:
         plt.savefig(save_as)
     if show_plot:
@@ -128,16 +139,15 @@ def view_spectrogram(
 
 def plot_correlations(
     correlations_file: str,
-    reference_wav: str= None,
+    reference_wav: str = None,
     duration: int = None,
     deployment: int = 1,
     site: int = 1,
     save_as: str = None,
     frequency_lines: tuple = None,
 ):
-    """NOTE useless function, remove before publiciation
-    """
-    
+    """NOTE useless function, remove before publiciation"""
+
     # NOTE remember to add +- 20% to see box in context
     if not (reference_wav or duration):
         return ValueError("require wav or duration in seconds")
@@ -192,7 +202,7 @@ def plot_correlations(
 
 
 def plot_datetime(deployment=1, site=1, save_as=None):
-    """plots date agianst time for all recordings of a deployment 
+    """plots date agianst time for all recordings of a deployment
     from the deployment summary
     """
 
@@ -219,9 +229,8 @@ def plot_datetime(deployment=1, site=1, save_as=None):
 
 
 def multi_plot_spectogram(files_dir, save_as=None):
-    """NOTE unused, remove before publication
-    """
-    
+    """NOTE unused, remove before publication"""
+
     files = os.listdir(files_dir)
     wav_files = [file for file in files if file.lower().endswith(".wav")]
 

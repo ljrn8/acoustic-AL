@@ -27,14 +27,14 @@ with open("templates.txt", "r") as f:
         if name in unknown:
             low, high, start, end = [float(i) for i in (low, high, start, end)]
             source = Path(source)
-            
+
             templ = Template(
                 frequency_lims=(low, high),
                 time_segment=(start, end),
                 source_recording_path=source,
                 name=name,
             )
-            
+
             directory = Path(CORRELATIONS) / name
             directory.mkdir(exist_ok=True)
             with open(directory / "all_7depl.pkl", "wb") as f:
