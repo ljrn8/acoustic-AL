@@ -1,48 +1,70 @@
 import argparse
-import pickle
-import sys
 from pathlib import Path
 
+import pickle
 import pandas as pd
-import scr_path
 from correlating import Template
 from config import CORRELATIONS
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-t", "--threshhold")
-parser.add_argument("-d", "--deployments")
+DESC = (
+"""
+correlate a template over the dataset. 
+To use a template, add it to ./templates.csv including (name,low,high,start,end,site,deployment,recording)
+run with: python template_match [template_name/s]. 
+"""
+)
+
+parser = argparse.ArgumentParser(description=DESC)
+parser.add_argument("-t", "--threshhold", default=7)
+parser.add_argument("-d", "--deployments", default=0.5)
+
 args, unknown = parser.parse_known_args()
+
+if not unknown:
+    parser.print_help()
+    exit()
+
+TEMPLATES = Path('templates.csv')
+df = pd.read_csv(TEMPLATES)
 thresh = float(args.threshhold) if args.threshhold else 0.5
 depl = int(args.deployments) if args.deployments else 7
 
+if not TEMPLATES.exists():
+    raise RuntimeError(f'file {TEMPLATES} does not exist. run with -h to see usage')
 
-with open("templates.txt", "r") as f:
-    f.readline()
-    for line in f:
-        if line.strip() == "":
-            continue
+templates = df["name"].unique()
+if not any([u for u in unknown if u in templates]):
+    raise RuntimeError(f"none of {unknown} in {templates}")
 
-        items = line.split()
-        name, low, high, start, end, source = items
-        if name in unknown:
-            low, high, start, end = [float(i) for i in (low, high, start, end)]
-            source = Path(source)
+for i, row in df[df['name'].isin(unknown)].iterrows():
+    low, high, start, end = [float(i) for i in (
+        row['low'], row['high'], row['start'], row['end']
+    )]
+    source = Path(row['source'])
+    name = row['name']
 
-            templ = Template(
-                frequency_lims=(low, high),
-                time_segment=(start, end),
-                source_recording_path=source,
-                name=name,
-            )
+    print(f"\n-- correlating {name} --")
 
-            directory = Path(CORRELATIONS) / name
-            directory.mkdir(exist_ok=True)
-            with open(directory / "all_7depl.pkl", "wb") as f:
-                corrs = templ.template_match(
-                    file_cap=None,
-                    n_deployments=depl,
-                    thresh=thresh,
-                )
-                pickle.dump(corrs, f)
+    templ = Template(
+        frequency_lims=(low, high),
+        time_segment=(start, end),
+        source_recording_path=source,
+        name=name,
+    )
+    
+    directory = Path(CORRELATIONS) / name
+    directory.mkdir(exist_ok=True)
+    f = directory / "all_7depl.pkl"
+    
+    with open(f, "wb") as f:
+        corrs = templ.template_match(
+            file_cap=None,
+            n_deployments=depl,
+            thresh=thresh,
+            save_incremental=True
+        )
+        pickle.dump(corrs, f)
 
-            print(corrs)
+    print(corrs)
+    print(f"correlations stored in {f}")
+    

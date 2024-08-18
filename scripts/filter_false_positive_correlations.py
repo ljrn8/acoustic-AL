@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 import scr_path
-from settings import CORRELATIONS
+from config import CORRELATIONS
 
 name = sys.argv[1]
 

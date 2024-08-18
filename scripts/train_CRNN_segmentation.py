@@ -1,5 +1,3 @@
-# !! TODO module package imports horrible
-# also it looks like ALL time is spend in IO
 
 
 import numpy as np
@@ -7,13 +5,14 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
+from util import Dataset
+from preprocessing import SpectrogramSequence
+from config import *
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from acoustic_AL.preprocessing import SpectrogramSequence
-from acoustic_AL.util import Dataset
 import datetime
-from acoustic_AL.config import *
 from sklearn.model_selection import train_test_split
 import argparse
 
@@ -23,7 +22,9 @@ parser.add_argument("--debug", "-d", action="store_true")
 args = parser.parse_args()
 
 
+# NOTE ALL time is spend in IO
 # TODO cmdline args
+
 batch = 32
 epochs = 30
 
