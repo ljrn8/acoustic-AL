@@ -122,8 +122,12 @@ class Dataset:
     def get_data_path(self, deployment, site) -> Path:
         return self.get_deployment_path(deployment, site) / "Data"
 
-    def get_recordings(self, deployment, site) -> list:
-        return os.listdir(self.get_data_path(deployment, site))
+    def get_recordings(self, deployment, site, path=False) -> list:
+        recs = os.listdir(self.get_data_path(deployment, site))
+        if not path:
+            return recs
+        else:
+            return [self.get_data_path(deployment, site) / r for r in recs]
 
     def get_duration(self, file, deployment, site, sr=10_000) -> float:
         y, sr = librosa.load(

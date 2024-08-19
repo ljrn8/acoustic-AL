@@ -19,16 +19,15 @@ import logging
 
 log = logging.getLogger(__name__)
 
-
-class SpectrogramSequence(Sequence):
-    # TODO overlapping chunks
-
-    DEFAULT_TOKENS = {  # NOTE 1hot?
+DEFAULT_TOKENS = {  # NOTE 1hot?
         "fast_trill_6khz": 0,
         "nr_syllable_3khz": 1,
         "triangle_3khz": 2,
         "upsweep_500hz": 3,
     }
+
+class SpectrogramSequence(Sequence):
+    # TODO overlapping chunks
 
     nperseg = 1024
     noverlap = 512
