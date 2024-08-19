@@ -1,15 +1,15 @@
 from config import *
-from preprocessing import SpectrogramSequence, DEFAULT_TOKENS
+from preprocessing import DEFAULT_TOKENS
 import numpy as np
 import pandas as pd
 import librosa
 from util import *
-from maad import sound, util
 
 from tqdm import tqdm
 
 import scipy.io.wavfile
 from scipy.signal import resample_poly
+from maad import sound, util
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ annotated = np.array([
 annotated = np.array(annotated)
 not_annotated = [r for r in all_recordings if r not in annotated]
 
-log.info(f'total n# recordings: ', len(all_recordings))
+log.info(f'total n# recordings: {len(all_recordings)}')
 log.info(f'n# annotated recordings: {len(annotated)}, eg -> {annotated[-1]}')
 log.info(f'n# not annotated recordings: {len(not_annotated)}, eg -> {not_annotated[-1]}')
 
@@ -80,27 +80,35 @@ for rec, rec_df in tqdm(annotation_df[:3].groupby('recording'), desc='processing
     n_frames = librosa.samples_to_frames(len(y))
 
     Y_recording = np.zeros(shape=(n_frames, 4))
-    for label, label_index in DEFAULT_TOKENS.items():
 
-        label_annotations = rec_df[rec_df["label"] == label]
-        
-        label_start_frames = librosa.time_to_frames(
-            label_annotations["min_t"],
-            sr=SR,
-            hop_length=OVERLAP,
-            n_fft=WINDOW_TYPE,
-        )
-        
-        label_end_frames = librosa.time_to_frames(
-            label_annotations["max_t"],
-            sr=SR,
-            hop_length=OVERLAP,
-            n_fft=WINDOW_TYPE,
-        )
+    with timeit("computing Y"):
+        for label, label_index in DEFAULT_TOKENS.items():
+            
+            labelwize_annotations = rec_df[rec_df["label"] == label]
 
-        for start, end in zip(label_start_frames, label_end_frames):
-            Y_recording[start:end, label_index] = 1
+            start_times, end_times = (
+                np.array(labelwize_annotations["min_t"].astype(np.int32)), 
+                np.array(labelwize_annotations["max_t"].astype(np.int32))
+            )
+            
+            label_start_frames = librosa.time_to_frames(
+                start_times,
+                sr=SR,
+                hop_length=OVERLAP,
+                n_fft=WIN_LEN,
+            )
+            
+            label_end_frames = librosa.time_to_frames(
+                end_times,
+                sr=SR,
+                hop_length=OVERLAP,
+                n_fft=WIN_LEN,
+            )
 
-    log.debug("recordings shapes= ", S.shape, Y_recording.shape)
+            for start, end in zip(label_start_frames, label_end_frames):
+                Y_recording[start:end, label_index] = 1
+
+    log.debug(f"recordings shapes= {S.shape}, {Y_recording.shape}")
+    # ((1024, 8592), (112500, 4))
 
 # TODO paddings

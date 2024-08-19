@@ -1,0 +1,52 @@
+20:43:54 DEBUG Debug logging active
+20:43:59 DEBUG write to disk
+20:43:59 DEBUG  * Time Taken: 0.000003 seconds
+20:44:44 DEBUG write to disk
+20:44:44 DEBUG  * Time Taken: 0.000162 seconds
+20:45:45 DEBUG eat
+20:46:10 DEBUG pickle loaded: /home/ethan/.local/lib/python3.8/site-packages/jedi/third_party/typeshed/stdlib/3/builtins.pyi
+20:46:17 DEBUG Falling back to TensorFlow client; we recommended you install the Cloud TPU client directly with pip install cloud-tpu-client.
+20:46:17 DEBUG Creating converter from 7 to 5
+20:46:17 DEBUG Creating converter from 5 to 7
+20:46:17 DEBUG Creating converter from 7 to 5
+20:46:17 DEBUG Creating converter from 5 to 7
+20:46:18 DEBUG pydot initializing
+20:46:18 DEBUG pydot 3.0.1
+20:46:18 DEBUG pydot core module initializing
+20:46:18 DEBUG pydot dot_parser module initializing
+20:46:19 DEBUG matplotlib data path: /home/ethan/.local/lib/python3.8/site-packages/matplotlib/mpl-data
+20:46:19 DEBUG CONFIGDIR=/home/ethan/.config/matplotlib
+20:46:19 DEBUG interactive is False
+20:46:19 DEBUG platform is linux
+20:46:20 DEBUG CACHEDIR=/home/ethan/.cache/matplotlib
+20:46:20 DEBUG Using fontManager instance from /home/ethan/.cache/matplotlib/fontlist-v330.json
+20:46:21 INFO getting recordings
+20:46:23 INFO total n# recordings: 3418
+20:46:23 INFO n# annotated recordings: 301, eg -> /mnt/e/acoustic-AL-dataset/site01/deployment_007/Data/1_20230918_060000.wav
+20:46:23 INFO n# not annotated recordings: 3117, eg -> /mnt/e/acoustic-AL-dataset/site01/deployment_010/Data/1_20240120_060000.wav
+20:46:23 INFO processing annotated recordings
+20:46:23 DEBUG load
+20:46:24 DEBUG  * Time Taken: 1.597473 seconds
+20:46:24 DEBUG resample
+20:46:26 DEBUG  * Time Taken: 2.040275 seconds
+20:46:26 DEBUG stft 1_20230317_070000.wav
+20:46:27 DEBUG  * Time Taken: 0.433613 seconds
+20:46:27 DEBUG converting to db 1_20230317_070000.wav
+20:46:27 DEBUG  * Time Taken: 0.858147 seconds
+20:46:28 DEBUG computing Y
+20:46:28 DEBUG  * Time Taken: 0.012116 seconds
+20:46:28 DEBUG recordings shapes= (1024, 8592), (112500, 4)
+20:46:28 DEBUG load
+20:46:29 DEBUG  * Time Taken: 1.527971 seconds
+20:46:29 DEBUG resample
+20:46:31 DEBUG  * Time Taken: 1.691728 seconds
+20:46:31 DEBUG stft 1_20230319_063000.wav
+20:46:31 DEBUG  * Time Taken: 0.521249 seconds
+20:46:31 DEBUG converting to db 1_20230319_063000.wav
+20:46:32 DEBUG  * Time Taken: 1.030310 seconds
+20:46:32 DEBUG computing Y
+20:46:32 DEBUG  * Time Taken: 0.005329 seconds
+20:46:32 DEBUG recordings shapes= (1024, 8592), (112500, 4)
+20:46:32 DEBUG load
+20:46:34 DEBUG  * Time Taken: 1.532076 seconds
+20:46:34 DEBUG resample

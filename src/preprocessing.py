@@ -80,12 +80,15 @@ class SpectrogramSequence(Sequence):
             # cache X, Y for each seperate chunk, grouped by recording
             # NOTE just group these by recording not chunk?
             for start_frame in range(0, n_frames - self.chunk_len, self.chunk_len):
-
                 end_frame = start_frame + self.chunk_len
                 X_info = (site, depl, recording, start_frame, end_frame)
-
                 self.chunk_info.append((X_info, Y_all[start_frame:end_frame, :]))
-
+    
+    
+    def __len__(self):
+        return len(self.chunk_info) // self.batch_size
+    
+    
     def _extract_samplewise_annotations(self, rec_df, n_frames) -> np.array:
         Y_recording = np.zeros(shape=(n_frames, 4))
         for label, label_index in self.label_tokens.items():
@@ -107,9 +110,7 @@ class SpectrogramSequence(Sequence):
                 Y_recording[start:end, label_index] = 1
 
         return Y_recording
-
-    def __len__(self):
-        return len(self.chunk_info) // self.batch_size
+    
 
     def _load_and_process_recording(self, recording_info) -> np.array:
         site, depl, recording, start_frame, end_frame = recording_info
@@ -140,6 +141,7 @@ class SpectrogramSequence(Sequence):
         print(f"\rTotal: {elapsed_time:.2f} seconds")
 
         return S_db
+
 
     def __getitem__(self, idx):
         batch = self.chunk_info[idx * self.batch_size : (idx + 1) * self.batch_size]
