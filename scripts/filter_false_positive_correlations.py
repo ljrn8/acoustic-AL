@@ -1,8 +1,6 @@
 import pickle
 import sys
 from pathlib import Path
-
-import scr_path
 from config import CORRELATIONS
 
 name = sys.argv[1]

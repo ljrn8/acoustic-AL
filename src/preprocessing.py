@@ -1,9 +1,19 @@
+""" Preprocessing classes/functions
+
+TODO
+* refactor (nperseg ect)
+* overlapping chunks
+* yield from h5py datasets 
+
+"""
+
+
 from tensorflow.keras.utils import Sequence
 from maad import sound, util
 import librosa
 
 from config import *
-from util import Dataset, timeit
+from util import WavDataset, timeit
 
 from pathlib import Path
 import numpy as np
@@ -37,7 +47,7 @@ class SpectrogramSequence(Sequence):
     def __init__(
         self,
         annotations_df,
-        ds: Dataset = Dataset(DATA_ROOT),
+        ds: WavDataset = WavDataset(DATA_ROOT),
         chunk_len_seconds=10,
         batch_size=32,
         sr=96_000,
@@ -64,7 +74,6 @@ class SpectrogramSequence(Sequence):
             depl, site = int(annotations_group_df["deployment"].iloc[0]), int(
                 annotations_group_df["site"].iloc[0]
             )
-            p = Path(ds.get_data_path(depl, site)) / recording
 
             # max time
             n_frames = librosa.time_to_frames(
@@ -89,35 +98,70 @@ class SpectrogramSequence(Sequence):
         return len(self.chunk_info) // self.batch_size
     
     
+    def __getitem__(self, idx):
+        batch = self.chunk_info[idx * self.batch_size : (idx + 1) * self.batch_size]
+        batch_x = []
+        batch_y = []
+        prev = None
+        S_db = None
+
+        running_X_batch_len = np.zeros(2, dtype=np.float)
+        running_Y_batch_len = np.zeros(2, dtype=np.float)
+
+        for X_info, Y in batch:
+            site, depl, recording, start_frame, end_frame = X_info
+            cur = recording
+            if cur != prev:
+                S_db = self._load_and_process_recording(recording)
+
+            assert S_db is not None  # sanity check
+            S_slice = S_db[:, start_frame:end_frame]
+            assert S_slice.shape[1] == Y.shape[0], (
+                "spectrogram chunk shape abnormal for " + X_info
+            )
+
+            batch_x.append(S_slice)
+            batch_y.append(Y)
+            prev = cur
+
+            # debugging
+            running_X_batch_len += S_slice.shape
+            running_Y_batch_len += Y.shape
+
+        logging.debug(
+            f"batch average spectrogram chunk shape: {(running_X_batch_len / 32)}"
+        )
+        logging.debug(f"batch average Y shape: {(running_Y_batch_len / 32)}")
+        return np.array(batch_x), np.array(batch_y)
+    
+    
+    def s_to_frames(self, seconds):
+        return librosa.time_to_frames(
+            seconds,
+            sr=self.sr,
+            hop_length=self.noverlap,
+            n_fft=self.nperseg,
+        )
+                
+                
     def _extract_samplewise_annotations(self, rec_df, n_frames) -> np.array:
         Y_recording = np.zeros(shape=(n_frames, 4))
         for label, label_index in self.label_tokens.items():
             label_annotations = rec_df[rec_df["label"] == label]
-            label_start_frames = librosa.time_to_frames(
-                label_annotations["min_t"],
-                sr=self.sr,
-                hop_length=self.noverlap,
-                n_fft=self.nperseg,
-            )
-            label_end_frames = librosa.time_to_frames(
-                label_annotations["max_t"],
-                sr=self.sr,
-                hop_length=self.noverlap,
-                n_fft=self.nperseg,
-            )
-
+            
+            label_start_frames = self.s_to_frames(label_annotations['min_t'])
+            label_end_frames = self.s_to_frames(label_annotations['max_t'])
+            
             for start, end in zip(label_start_frames, label_end_frames):
                 Y_recording[start:end, label_index] = 1
 
         return Y_recording
     
 
-    def _load_and_process_recording(self, recording_info) -> np.array:
-        site, depl, recording, start_frame, end_frame = recording_info
-
+    def _load_and_process_recording(self, recording) -> np.array:
         with timeit("loading new recording: " + recording):
             start_time = time.time()
-            recording_path = self.ds.get_data_path(depl, site) / recording
+            recording_path = self.ds[recording]
             samplerate, s = wavfile.read(recording_path)
             # s, samplerate = sf.read(recording_path)
 
@@ -141,40 +185,3 @@ class SpectrogramSequence(Sequence):
         print(f"\rTotal: {elapsed_time:.2f} seconds")
 
         return S_db
-
-
-    def __getitem__(self, idx):
-        batch = self.chunk_info[idx * self.batch_size : (idx + 1) * self.batch_size]
-        batch_x = []
-        batch_y = []
-        prev = None
-        S_db = None
-
-        running_X_batch_len = np.zeros(2, dtype=np.float)
-        running_Y_batch_len = np.zeros(2, dtype=np.float)
-
-        for X_info, Y in batch:
-            site, depl, recording, start_frame, end_frame = X_info
-            cur = recording
-            if cur != prev:
-                S_db = self._load_and_process_recording(X_info)
-
-            assert S_db is not None  # sanity check
-            S_slice = S_db[:, start_frame:end_frame]
-            assert S_slice.shape[1] == Y.shape[0], (
-                "spectrogram chunk shape abnormal for " + X_info
-            )
-
-            batch_x.append(S_slice)
-            batch_y.append(Y)
-            prev = cur
-
-            # debugging
-            running_X_batch_len += S_slice.shape
-            running_Y_batch_len += Y.shape
-
-        logging.debug(
-            f"batch average spectrogram chunk shape: {(running_X_batch_len / 32)}"
-        )
-        logging.debug(f"batch average Y shape: {(running_Y_batch_len / 32)}")
-        return np.array(batch_x), np.array(batch_y)

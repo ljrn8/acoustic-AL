@@ -5,7 +5,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-from util import Dataset
+from util import WavDataset
 from preprocessing import SpectrogramSequence
 from config import *
 
@@ -37,8 +37,9 @@ metrics = [
     #    tf.keras.metrics.AUC(name='auc'),
 ]
 
-ds = Dataset(DATA_ROOT)
+ds = WavDataset(DATA_ROOT)
 annotations_df = pd.read_csv(ANNOTATIONS / "initial_dataset_7depl_metadata.csv")
+
 # has_annotations = "1_20230316_063000.wav"
 # has_annotations_path = ds.get_data_path(1, 1) / has_annotations
 

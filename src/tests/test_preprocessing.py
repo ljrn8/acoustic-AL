@@ -56,9 +56,9 @@ class Tests(unittest.TestCase):
     annotations_df: pd.DataFrame = pd.read_csv(
         ANNOTATIONS / "initial_dataset_7depl_metadata.csv"
     )
-    ds: Dataset = Dataset(DATA_ROOT)
+    ds: WavDataset = WavDataset(DATA_ROOT)
     has_annotations = "1_20230316_063000.wav"
-    has_annotations_path = ds.get_data_path(1, 1) / has_annotations
+    has_annotations_path = ds[has_annotations]
 
     sr = 24_000
     spectrogram_sequence = SpectrogramSequence(annotations_df, ds, sr=sr)
@@ -78,7 +78,7 @@ class Tests(unittest.TestCase):
         for label, index in self.spectrogram_sequence.label_tokens.items():
             print(f"total samples with {label}: {sum(Y_all[:, index])}")
 
-    @unittest.skip
+    # @unittest.skip
     def test_batch(self):
         ys = np.array([Y for (X, Y) in self.spectrogram_sequence.chunk_info])
         index = [i for i, y in enumerate(ys) if y.flatten().sum() > 0][0]
@@ -87,20 +87,12 @@ class Tests(unittest.TestCase):
         batch_index = index // self.spectrogram_sequence.batch_size
         print("batch_index -> ", batch_index)
 
-        ### uncomment if from file ##
-
-        # if Path("./objects/batch.pkl").exists():
-        #     batch = get("./objects/batch.pkl")
-        # else:
-        #     batch = self.spectrogram_sequence.__getitem__(batch_index)
-        #     dump(batch, "./objects/batch.pkl")
-
         batch = self.spectrogram_sequence.__getitem__(batch_index)
         _view_store_batch(batch)
 
-    # dims
-    # (512, 467)
-    # (467, 4)
+        # target dims
+        # (512, 467)
+        # (467, 4)
 
 
 if __name__ == "__main__":

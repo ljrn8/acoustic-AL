@@ -11,6 +11,13 @@ pip install setuptools
 ```
 
 ## Usage
+! currently not in usable state
+
+set the dataset root in /.env
+```.env
+DATA_ROOT="/path/to/wavfiles/" 
+```
+
 setup a local environment
 ```
 python -m venv env
@@ -29,7 +36,7 @@ install the package code under /scr
 pip install -e .
 ```
 
-run scripts
+run scripts ect
 ```
 cd scripts
 python train_CNN_segmentation.py [-d]

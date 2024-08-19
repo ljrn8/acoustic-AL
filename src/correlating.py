@@ -1,14 +1,7 @@
 """Template matching/Correlation utilities for generating annotations of short audio signatures.
 
-Example usage:
-
-    templ = template(source_recording_path=.., time_segment=.. )
-    correlations = templ.template_match(
-        dataset=Dataset(root),
-        n_deployments=2,
-        ...
-    )
-    correlations.to_csv(..)
+TODO
+* refactor to use general WavDataset
     
 """
 
@@ -18,15 +11,15 @@ from os import path
 from pathlib import Path
 
 from plotting import view_spectrogram
-from util import BoundedBox, Dataset
+from util import BoundedBox, MauritiusDataset
 from config import CORRELATIONS
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-# import pygetwindow as gw
 from maad import sound, util
 from maad.rois import template_matching
+import librosa
+import soundfile as sf
 
 
 class Template(BoundedBox):
@@ -39,8 +32,10 @@ class Template(BoundedBox):
             (start, end) in seconds for the segment
         frequency_lims (tuple[int]):
             (high, low) frequency limits fro the segment in hz
+        sr: 
+            custom sample rate for reading the template/dataset 
 
-    Attributes:
+    Other Attributes:
         raw_correlations (pandas.DataFrame): stored raw output after running Template.template_match()
         incremental_correlations (list): deployment wize output after running Template.template_match()
 
@@ -49,8 +44,30 @@ class Template(BoundedBox):
     raw_correlations: pd.DataFrame = None
     incremental_correlations = {}
 
-    def __init__(self, source_recording_path, time_segment, frequency_lims, **kwargs):
-        super().__init__(time_segment, source_recording_path, frequency_lims, **kwargs)
+    frequency_lims: tuple
+    time_segment: tuple
+    source_recording_path: str
+    name: str = None
+    y: int
+    sr: int
+    S: int
+
+    def __init__(
+        self,
+        source_recording_path,
+        time_segment,
+        frequency_lims=None,
+        sr=None,
+        **kwargs,
+    ):
+        self.frequency_lims = frequency_lims
+        self.time_segment = time_segment
+        self.source_recording_path = source_recording_path
+        self.__dict__.update(kwargs)
+
+        y, sr_given = librosa.load(source_recording_path, sr=sr)
+        self.sr = sr or sr_given
+        self.S, self.y = self.get_stft(y, self.sr)
 
     def view(self, **kwargs):
         view_spectrogram(
@@ -59,10 +76,34 @@ class Template(BoundedBox):
             frequency_range=self.frequency_range,
             **kwargs,
         )
+    
+    def write_audio_segment(self, output_file_path, widen=0):
+        y, sr = librosa.load(self.source_recording_path)
+        start_s, end_s = self.time_segment
+        start_s -= widen
+        end_s += widen
 
+        start_sample = int(start_s * sr)
+        end_sample = int(end_s * sr)
+        y_segment = y[start_sample:end_sample]
+        sf.write(output_file_path, y_segment, sr)
+
+    def get_stft(self, y, sr):
+        start_s, end_s = self.time_segment
+        y = y[int(sr * start_s) : int(sr * end_s)]
+        S = librosa.stft(y)
+        if self.frequency_range:
+            start_hz, end_hz = self.frequency_range
+            low_i = int(np.floor(start_hz * (S.shape[0] * 2) / sr))
+            high_i = int(np.ceil(end_hz * (S.shape[0] * 2) / sr))
+            S = S[low_i:high_i, :]
+
+        return S, y
+    
+    
     def template_match(
         self,
-        dataset: Dataset,
+        dataset: MauritiusDataset,
         just_one_recording: str = None,
         n_deployments: int = 1,
         site: int = 1,
@@ -225,111 +266,5 @@ class Template(BoundedBox):
         print("filtered n# correlations: ", len(df_filtered))
         return df_filtered
 
-    """def verify_correlations(self, output_csv, custom_df=None):
-        #!! NOTE: unused function, remove before publication
-
-        if Path(output_csv).exists():
-            print(f"'{output_csv}' already exists, appending")
-
-        if self.raw_correlations is not None:
-            correlations = self.raw_correlations
-        elif custom_df:
-            correlations = custom_df
-        else:
-            raise RuntimeError(
-                "existing correlations not found, run correlations via 'template_match()' or provide correlations file via 'corrs_pkl'"
-            )
-
-        Path(output_csv).touch()
-        with open(output_csv, "a") as f:
-            for c in correlations.columns:
-                f.write(str(c) + "\t")
-            f.write("\n")
-
-        # trimm correlations to the threshhold
-        counts = correlations["recording"].value_counts()
-        if len(counts) >= 50:
-            print("over 50 files found, only showing first 50 in correlations")
-            counts = counts[:50]
-
-        plt.figure(figsize=(8, 5))
-        counts.plot(kind="bar")
-        plt.xticks(fontsize=5, rotation=45)
-        plt.xlabel("Recording")
-        plt.ylabel("N# Correlations")
-        plt.show(block=False)
-
-        figsize = (4, 3)
-        y_lim = 7_000
-
-        # grouped by recording, iterate over all correlations
-        for recording, matches_df in correlations.groupby("recording"):
-            depl = matches_df["deployment"].iloc[0]
-            site = matches_df["site"].iloc[0]
-            rec_path = path.join(Dataset().get_data_path(depl, site), recording)
-
-            print(f"{len(matches_df)} from: ", rec_path)
-            y, sr = librosa.load(rec_path, sr=44_000)
-            widen = 0.6
-
-            for i, row in matches_df.iterrows():
-
-                fig, ax = plt.subplots(figsize=figsize)
-                frequency_range = (row["min_f"], row["max_f"])
-                time_segment = (
-                    row["peak_time"] - 0.949 / 2,
-                    row["peak_time"] + 0.949 / 2,
-                )
-                title = str(row["xcorrcoef"])[:5] + "_" + path.basename(rec_path)
-
-                n_fft = 2048
-                hop_length = n_fft // 4
-
-                # cut out spectrogram
-                start, end = time_segment
-                y_cut = y[max(int(sr * (start - widen)), 0) : int(sr * (end + widen))]
-                S = librosa.stft(y_cut, n_fft=n_fft, hop_length=hop_length)
-                S_db = librosa.amplitude_to_db(np.abs(S), ref=np.max)
-
-                if frequency_range:
-                    ax.axhline(y=frequency_range[0], color="g", linestyle="-")
-                    ax.axhline(y=frequency_range[1], color="g", linestyle="-")
-                    if y_lim:
-                        ax.set_ylim(0, y_lim)
-                    else:
-                        ax.set_ylim(0, min(frequency_range[1] + 9_000, sr * 2))
-
-                if time_segment:
-                    ax.axvline(x=int(widen * sr / hop_length), color="g", linestyle="-")
-                    ax.axvline(
-                        x=S.shape[1] - int(widen * sr / hop_length),
-                        color="g",
-                        linestyle="-",
-                    )
-
-                img = librosa.display.specshow(S_db, y_axis="linear", ax=ax, sr=sr)
-                ax.set(title=title)
-                ax.set_xlabel(f"{start}-{end}")
-
-                display(Audio(data=y_cut, rate=sr))
-                plt.show(block=False)
-
-                # make sure the terminal is still focused
-                terminal_windows = gw.getWindowsWithTitle("Terminal")
-                pws_windows = gw.getWindowsWithTitle("Powershell")
-                for windows in [terminal_windows, pws_windows]:
-                    if windows:
-                        window = windows[0]
-                        window.activate()
-
-                ans = input("is this correlation correct [y/n]?  [default in yes]: ")
-                if ans.lower() not in ["n", "no"]:
-                    with open(output_csv, "a") as f:
-                        for r in row:
-                            f.write(str(r) + "\t")
-                        f.write("\n")
-
-                plt.clf()
-                plt.close()"""
 
     

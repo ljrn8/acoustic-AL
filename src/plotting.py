@@ -10,6 +10,7 @@ example usage:
 
 """
 
+import os
 from os import path
 
 import librosa
@@ -21,7 +22,7 @@ import pandas as pd
 from IPython.display import Audio, display
 from pathlib import Path
 
-from util import Dataset
+from util import MauritiusDataset
 
 
 def view_spectrogram(
@@ -73,7 +74,7 @@ def view_spectrogram(
     if recording_id:
         if not recording_id.endswith(".wav"):
             recording_id += ".wav"
-        file_path = path.join(Dataset().get_data_path(1, 1), recording_id)
+        file_path = path.join(MauritiusDataset().get_data_path(1, 1), recording_id)
 
     if not ax:
         fig, ax = plt.subplots(figsize=figsize)
@@ -137,70 +138,6 @@ def view_spectrogram(
     return ax
 
 
-def plot_correlations(
-    correlations_file: str,
-    reference_wav: str = None,
-    duration: int = None,
-    deployment: int = 1,
-    site: int = 1,
-    save_as: str = None,
-    frequency_lines: tuple = None,
-):
-    """NOTE useless function, remove before publiciation"""
-
-    # NOTE remember to add +- 20% to see box in context
-    if not (reference_wav or duration):
-        return ValueError("require wav or duration in seconds")
-
-    # get the segment length
-    if reference_wav:
-        print("inferring reference length from given file")
-        y, sr = librosa.load(reference_wav)
-        duration = librosa.get_duration(y=y, sr=sr)
-
-    # find recordings for the given deployment
-    data_folder = path.join(get_deployment_dir(deployment, site), "Data")
-    files = os.listdir(data_folder)
-    wav_files = [file for file in files if file.lower().endswith(".wav")]
-
-    # read correlations
-    with open(correlations_file) as f:
-        lines = f.readlines()
-        n_graphs = len(lines)
-
-        # setup graph
-        print("showing ", n_graphs, "spectrograms")
-        n_rows = (n_graphs // 15) + 1
-        fig, axes = plt.subplots(n_rows, 15, figsize=(20, 5 * n_rows))
-
-        # setup graphs
-        graph_bleed = 15 - (len(wav_files) % 15)
-        for ax, line in zip(np.array(axes).flatten()[:-graph_bleed], lines):
-            C, time, file = line.split(",")
-            time = float(time)
-            file = file.strip()
-            print(f"reading [{file}, {time}]", end="\r", flush=True)
-
-            y, sr = load(path.join(data_folder, file))
-            y = y[int(sr * time) : int(sr * (time + duration))]
-
-            D = librosa.stft(y)
-            S_db = librosa.amplitude_to_db(np.abs(D), ref=np.max)
-            img = librosa.display.specshow(S_db, y_axis="linear", ax=ax)
-            ax.set_xlabel("")
-            ax.set_ylabel("")
-
-            if frequency_lines:
-                ax.axhline(y=frequency_lines[0], color="g", linestyle="-")
-                ax.axhline(y=frequency_lines[1], color="g", linestyle="-")
-
-        if save_as:
-            plt.savefig(f"figures/{save_as}.png")
-
-        print("\n")
-        plt.show()
-
-
 def plot_datetime(deployment=1, site=1, save_as=None):
     """plots date agianst time for all recordings of a deployment
     from the deployment summary
@@ -228,9 +165,8 @@ def plot_datetime(deployment=1, site=1, save_as=None):
     plt.show()
 
 
-def multi_plot_spectogram(files_dir, save_as=None):
-    """NOTE unused, remove before publication"""
 
+def multi_plot_spectogram(files_dir, save_as=None):
     files = os.listdir(files_dir)
     wav_files = [file for file in files if file.lower().endswith(".wav")]
 
