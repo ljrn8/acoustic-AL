@@ -22,6 +22,7 @@ from tqdm import tqdm
 import soundfile as sf
 import pandas as pd
 from scipy.signal import resample_poly
+import h5py
 
 import scipy.io.wavfile as wavfile
 
@@ -46,53 +47,72 @@ class SpectrogramSequence(Sequence):
 
     def __init__(
         self,
-        annotations_df,
         ds: WavDataset = WavDataset(DATA_ROOT),
-        chunk_len_seconds=10,
+        chunk_length_seconds=10,
+        chunk_overlap_seconds=3,
         batch_size=32,
-        sr=96_000,
+        train_hdf5_file=INTERMEDIATE / 'train.hdf5',
         label_tokens=DEFAULT_TOKENS,
+        sr=22_000
     ):
 
-        self.annotations = annotations_df
         self.ds = ds
         self.batch_size = batch_size
-        self.sr = sr
         self.label_tokens = label_tokens
+        self.sr = sr
+        
+        # data
+        train_f = h5py.File(train_hdf5_file, 'r')
+        self.recordings = list(train_f)
+        
+        # chunk len/overlap in frames
+        self.chunk_len = self.s_to_frames(chunk_length_seconds)
+        self.chunk_overlap = self.s_to_frames(chunk_overlap_seconds)
+        
+        log.info(f"n# frames in a chunk: {self.chunk_len}")
+        log.info(f"n# frames in chunk overlap: {self.chunk_overlap}")
+        
+        
         self.chunk_info = []
+        
+        for recording in tqdm(self.recordings, desc='preparing chunks from hdf5 database'):
+            
+            
+            
+            dataset = train_f[recording]
+            
+            X = dataset["X"]
+            Y = dataset["Y"]
+            
+            n_frames = X.shape[1] 
+            hop = self.chunk_len - self.chunk_overlap
+            
+            assert n_frames == X.shape[1], f'mismatch shapes in {recording}: {X.shape}, {Y.shape}'
 
-        # chunk length in frames
-        self.chunk_len = librosa.time_to_frames(
-            chunk_len_seconds, sr=sr, hop_length=self.noverlap, n_fft=self.nperseg
-        )
-        print("n# frames in chunk: ", self.chunk_len)
-
-        # iterate over each recording and its annotations dataframe
-        for recording, annotations_group_df in tqdm(
-            self.annotations.groupby("recording"), desc="preparing data"
-        ):
-            depl, site = int(annotations_group_df["deployment"].iloc[0]), int(
-                annotations_group_df["site"].iloc[0]
-            )
-
-            # max time
-            n_frames = librosa.time_to_frames(
-                annotations_group_df["recording_length"].iloc[0],
-                sr=self.sr,
-                hop_length=self.noverlap,
-                n_fft=self.nperseg,
-            )
-
-            # encode the entire sample (time step) classification matrix
-            Y_all = self._extract_samplewise_annotations(annotations_group_df, n_frames)
-
-            # cache X, Y for each seperate chunk, grouped by recording
-            # NOTE just group these by recording not chunk?
-            for start_frame in range(0, n_frames - self.chunk_len, self.chunk_len):
-                end_frame = start_frame + self.chunk_len
-                X_info = (site, depl, recording, start_frame, end_frame)
-                self.chunk_info.append((X_info, Y_all[start_frame:end_frame, :]))
+            # load in all chunk indexes for this recording            
+            self.chunk_info += [
+                (
+                    recording, start_frame, min(start_frame + self.chunk_len, n_frames-1), 
+                ) 
+                for start_frame in range(0, n_frames, hop)
+            ]
+            
+        log.info("shuffling chunks")
+        self.chunk_info = np.array(self.chunk_info)
+        np.random.shuffle(self.chunk_info)
+        log.info(f'chunk info length: {len(self.chunk_info)}')
+        train_f.close()
     
+    
+    
+    def s_to_frames(self, seconds):
+        return librosa.time_to_frames(
+            seconds,
+            sr=self.sr,
+            hop_length=self.noverlap,
+            n_fft=self.nperseg,
+        )
+        
     
     def __len__(self):
         return len(self.chunk_info) // self.batch_size
@@ -135,13 +155,6 @@ class SpectrogramSequence(Sequence):
         return np.array(batch_x), np.array(batch_y)
     
     
-    def s_to_frames(self, seconds):
-        return librosa.time_to_frames(
-            seconds,
-            sr=self.sr,
-            hop_length=self.noverlap,
-            n_fft=self.nperseg,
-        )
                 
                 
     def _extract_samplewise_annotations(self, rec_df, n_frames) -> np.array:

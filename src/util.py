@@ -94,3 +94,56 @@ class WavDataset(dict):
         return list(self.values())
     
     
+
+## !! dont use this (will be removed)
+class MauritiusDataset:
+    """ Old dataset class used for interactive with the muarities deployments. 
+    Will be remove before publication, use WavDataset above for general use/
+
+    Attributes:
+        root (str): root directory for the dataset (containes sites)
+        sites (list[str]): list of site names
+    """
+
+    root: str
+    sites: list
+    recordings: dict
+
+    def __init__(self, dataset_root=None):
+        self.root = dataset_root or DATA_ROOT
+        self.sites = self._get_sites()
+
+    # DO remove this (possibly no sites)
+    def _get_sites(self) -> list:
+        folders = os.listdir(self.root)
+        return [site for site in folders if path.isdir(path.join(self.root, site))]
+
+    def get_deployment_path(self, deployment, site) -> Path:
+        site = "site" + str(site).zfill(2)
+        return Path(self.root) / site / ("deployment_" + str(deployment).zfill(3))
+
+    def get_data_path(self, deployment, site) -> Path:
+        return self.get_deployment_path(deployment, site) / "Data"
+
+    def get_recordings(self, deployment, site, path=False) -> list:
+        recs = os.listdir(self.get_data_path(deployment, site))
+        if not path:
+            return recs
+        else:
+            return [self.get_data_path(deployment, site) / r for r in recs]
+
+    def get_duration(self, file, deployment, site, sr=10_000) -> float:
+        y, sr = librosa.load(
+            Path(self.get_deployment_path(deployment, site)) / "Data" / file, sr=sr
+        )
+        return librosa.get_duration(y=y, sr=sr)
+
+    def get_deployment_summary(self, deployment, site) -> pd.DataFrame:
+        depl = self.get_deployment_path(deployment, site)
+        for i in os.listdir(depl):
+            if "summary" in i.lower():
+                with open(path.join(depl, i), "r") as f:
+                    df = pd.read_csv(f)
+                return df
+
+
