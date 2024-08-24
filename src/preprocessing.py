@@ -7,24 +7,15 @@ TODO
 
 """
 
-
 from tensorflow.keras.utils import Sequence
-from maad import sound, util
 import librosa
 
 from config import *
-from util import WavDataset, timeit
+from util import WavDataset
 
-from pathlib import Path
 import numpy as np
-import time
 from tqdm import tqdm
-import soundfile as sf
-import pandas as pd
-from scipy.signal import resample_poly
 import h5py
-
-import scipy.io.wavfile as wavfile
 
 import logging
 
@@ -47,6 +38,9 @@ class SpectrogramSequence(Sequence):
 
     def __init__(
         self,
+        is_validation: bool = False,
+        validation_split = 0.8,
+
         ds: WavDataset = WavDataset(DATA_ROOT),
         chunk_length_seconds=10,
         chunk_overlap_seconds=3,
@@ -60,48 +54,68 @@ class SpectrogramSequence(Sequence):
         self.batch_size = batch_size
         self.label_tokens = label_tokens
         self.sr = sr
-        
-        # data
-        train_f = h5py.File(train_hdf5_file, 'r')
-        self.recordings = list(train_f)
+        self.train_hdf5_file = train_hdf5_file
         
         # chunk len/overlap in frames
         self.chunk_len = self.s_to_frames(chunk_length_seconds)
         self.chunk_overlap = self.s_to_frames(chunk_overlap_seconds)
         
+        # prepare chunk indexes
+        self.chunk_info = self._get_chunks(is_validation, validation_split)
+        
+        
+    def _get_chunks(self, is_validation, validation_split):
+        train_f = h5py.File(self.train_hdf5_file, 'r')
+        cut_index = int(len(train_f) * validation_split)
+        
+        if is_validation:     
+            self.recordings = list(train_f)[cut_index:]            
+        else:   
+            self.recordings = list(train_f)[:cut_index]
+            
         log.info(f"n# frames in a chunk: {self.chunk_len}")
         log.info(f"n# frames in chunk overlap: {self.chunk_overlap}")
+        log.info(f"number of recordings: {len(self.recordings)}/{len(train_f)} with [validation={is_validation}, split={validation_split}]")
         
-        
-        self.chunk_info = []
+        chunk_info = []
         
         for recording in tqdm(self.recordings, desc='preparing chunks from hdf5 database'):
-            
-            
-            
             dataset = train_f[recording]
-            
             X = dataset["X"]
             Y = dataset["Y"]
             
+            freq_bins = X.shape[0]
             n_frames = X.shape[1] 
             hop = self.chunk_len - self.chunk_overlap
             
             assert n_frames == X.shape[1], f'mismatch shapes in {recording}: {X.shape}, {Y.shape}'
 
             # load in all chunk indexes for this recording            
-            self.chunk_info += [
-                (
-                    recording, start_frame, min(start_frame + self.chunk_len, n_frames-1), 
-                ) 
-                for start_frame in range(0, n_frames, hop)
-            ]
+            for start_frame in range(0, n_frames, hop):
+                if start_frame + self.chunk_len >  n_frames-1:
+                    continue
+                
+                chunk_info.append(
+                    (recording, start_frame, start_frame + self.chunk_len) 
+                )
             
         log.info("shuffling chunks")
-        self.chunk_info = np.array(self.chunk_info)
-        np.random.shuffle(self.chunk_info)
-        log.info(f'chunk info length: {len(self.chunk_info)}')
+        np.random.shuffle(chunk_info)
+        
+        log.info(f'chunk info length: {len(chunk_info)}')
         train_f.close()
+        
+        # ensure every chunk is equal length
+        rec, start, end = chunk_info[0]
+        ref_length = end - start
+        for chunk in chunk_info:
+            rec, start, end = chunk
+            assert ref_length == end - start
+            
+        log.info(f'chunk length in frames: {ref_length}')
+        log.info(f'frequency bins: {freq_bins}')
+        
+        return chunk_info
     
     
     
@@ -119,43 +133,26 @@ class SpectrogramSequence(Sequence):
     
     
     def __getitem__(self, idx):
+        log.debug(f"retrieving batch {idx}")
         batch = self.chunk_info[idx * self.batch_size : (idx + 1) * self.batch_size]
-        batch_x = []
-        batch_y = []
-        prev = None
-        S_db = None
+        train_f = h5py.File(self.train_hdf5_file, 'r')
+        batch_X = []
+        batch_Y = []
 
-        running_X_batch_len = np.zeros(2, dtype=np.float)
-        running_Y_batch_len = np.zeros(2, dtype=np.float)
-
-        for X_info, Y in batch:
-            site, depl, recording, start_frame, end_frame = X_info
-            cur = recording
-            if cur != prev:
-                S_db = self._load_and_process_recording(recording)
-
-            assert S_db is not None  # sanity check
-            S_slice = S_db[:, start_frame:end_frame]
-            assert S_slice.shape[1] == Y.shape[0], (
-                "spectrogram chunk shape abnormal for " + X_info
-            )
-
-            batch_x.append(S_slice)
-            batch_y.append(Y)
-            prev = cur
-
-            # debugging
-            running_X_batch_len += S_slice.shape
-            running_Y_batch_len += Y.shape
-
-        logging.debug(
-            f"batch average spectrogram chunk shape: {(running_X_batch_len / 32)}"
-        )
-        logging.debug(f"batch average Y shape: {(running_Y_batch_len / 32)}")
-        return np.array(batch_x), np.array(batch_y)
+        for recording, start_frame, end_frame in batch:
+            log.debug(f"slicing dataset => {start_frame, end_frame}")
+            X_slice = train_f[recording]["X"][:, start_frame:end_frame]
+            Y_slice = train_f[recording]["Y"][:, start_frame:end_frame]
+            shapes = X_slice.shape, Y_slice.shape
+            log.debug(f'got shapes {str(shapes)}') 
+            batch_X.append(X_slice)
+            batch_Y.append(Y_slice.T) # !! .T 
+            
+        train_f.close()
+        return np.array(batch_X), np.array(batch_Y)
     
     
-                
+"""
                 
     def _extract_samplewise_annotations(self, rec_df, n_frames) -> np.array:
         Y_recording = np.zeros(shape=(n_frames, 4))
@@ -198,3 +195,4 @@ class SpectrogramSequence(Sequence):
         print(f"\rTotal: {elapsed_time:.2f} seconds")
 
         return S_db
+"""

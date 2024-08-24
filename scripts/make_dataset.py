@@ -20,6 +20,10 @@ now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
 log = logging.getLogger(__name__)
 
 
+# !!
+print("this script is not to be ran")
+exit()
+
 # hdf5 -> 1s to get all S chunks for 1 recording (<40mins for an epoch)
 # maad.signal.wavfile.read + others -> 4.5s for all S chunks of 1 rec
 

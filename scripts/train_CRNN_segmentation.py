@@ -1,5 +1,3 @@
-
-
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
@@ -13,36 +11,33 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import datetime
-from sklearn.model_selection import train_test_split
 import argparse
+
+log = logging.getLogger(__name__)
+
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--debug", "-d", action="store_true")
+parser.add_argument("--debug", "-d", action="store_true") # TODO set log level
+parser.add_argument("--epochs", "-e", default=10)
 args = parser.parse_args()
 
+if args.debug:
+    log.setLevel(logging.DEBUG)
 
-# NOTE ALL time is spend in IO
-# TODO cmdline args
+EPOCHS = int(args.epochs) 
+BATCH = 32
 
-batch = 32
-epochs = 30
-
-debug_df_cap = 100
+now_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+log_dir = "logs/fit/" + now_str
 
 metrics = [
     "binary_accuracy",
+    "accuracy", #!
     tf.keras.metrics.Precision(),
     tf.keras.metrics.Recall(),
     #    tf.keras.metrics.AUC(name='auc'),
 ]
-
-ds = WavDataset(DATA_ROOT)
-annotations_df = pd.read_csv(ANNOTATIONS / "initial_dataset_7depl_metadata.csv")
-
-# has_annotations = "1_20230316_063000.wav"
-# has_annotations_path = ds.get_data_path(1, 1) / has_annotations
-
 
 def CRNN(input_shape, num_classes, n_filters):
     freq_len, time_len, _ = input_shape
@@ -74,44 +69,22 @@ def CRNN(input_shape, num_classes, n_filters):
 ## ---- script ----
 
 model = CRNN(input_shape=(512, 428, 1), num_classes=4, n_filters=[32, 64, 128, 256])
-model.compile(optimizer="adam", loss="binary_crossentropy", metrics=metrics)
+model.compile(
+    optimizer="adam", 
+    loss="binary_crossentropy", 
+    metrics=metrics
+)
 log.info(model.summary())
 keras.utils.plot_model(model, to_file=FIGURES_DIR / "model.png")
 
-# group and shuffle ds
-grouped = annotations_df.groupby("recording")
-shuffled_groups = list(grouped)
-np.random.shuffle(shuffled_groups)
-shuffled_df = pd.concat([df for _, df in shuffled_groups], ignore_index=True)
-shuffled_df.reset_index(drop=True, inplace=True)
-
-if args.debug:
-    shuffled_df = shuffled_df.iloc[:debug_df_cap]
-
-# test train split
-train_df, test_df = train_test_split(shuffled_df, test_size=0.2, shuffle=False)
-train_df, validation_df = train_test_split(train_df, test_size=0.2, shuffle=False)
-
-log.info("\n val, test, train recording counts: ")
-for i in (validation_df, test_df, train_df):
-    log.info(i.shape)
-
 
 log.info("\npreparing dataset")
-sr = 22_000
-train_sequence = SpectrogramSequence(annotations_df=train_df, sr=sr, batch_size=batch)
-test_sequence = SpectrogramSequence(annotations_df=test_df, sr=sr, batch_size=batch)
-validation_sequence = SpectrogramSequence(
-    annotations_df=validation_df, sr=sr, batch_size=batch
-)
-
-log.info("\nval, train, test chunk counts:")
-for s in (train_sequence, test_sequence, validation_sequence):
-    log.info(len(s.chunk_info))
+seq_train = SpectrogramSequence(is_validation=False, validation_split=0.8, batch_size=BATCH)
+seq_validation = SpectrogramSequence(is_validation=True, validation_split=0.8, batch_size=BATCH)
 
 log.info("\n-- test batch --")
-batch_X, batch_Y = train_sequence.__getitem__(0)
-log.info("batch X Y shapes:", batch_X[0].shape, batch_Y[0].shape)
+batch_X, batch_Y = seq_validation.__getitem__(len(seq_validation))
+log.info(f"batch X Y shapes: {batch_X[0].shape, batch_Y[0].shape}")
 
 
 # early_stopping_cb = tf.keras.callbacks.EarlyStopping(
@@ -128,21 +101,19 @@ cp_callback = keras.callbacks.ModelCheckpoint(
     filepath=checkpoint_path, save_weights_only=True, verbose=1
 )
 
-now_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-log_dir = "logs/fit/" + now_str
+
 tensorboard_callback = keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
 history = model.fit(
-    train_sequence,
-    epochs=epochs,
-    validation_data=validation_sequence,
+    seq_train,
+    epochs=EPOCHS,
+    batch_size=BATCH,
+    validation_data=seq_validation,
     callbacks=[tensorboard_callback, cp_callback],
 )
 
 df = pd.DataFrame(history.history)
 df.to_csv(log_dir + "hist.csv")
-# df[['prc', 'val_prc', 'recall', 'val_recall']].plot()
 plt.savefig(FIGURES_DIR / "train.png")
 
-
-# 1 batch =~ 60MB in memory uncompressed
+model.save(MODEL_DIR / (now_str + '_crnn.keras'))
