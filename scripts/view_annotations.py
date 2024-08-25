@@ -13,40 +13,40 @@ import numpy as np
 def update_display(index):
     if 0 <= index < len(spectrograms):
 
-        spectrogram, Y = spectrograms[index]
+        S, Y = spectrograms[index]
 
-        scaler = MinMaxScaler((1, 255))
-        scaler.fit(spectrogram)
-        spectrogram = scaler.transform(spectrogram)
-        spectrogram = (spectrogram * 255).astype(np.int)
+        S = S.astype(float)
 
-        img = Image.fromarray(spectrogram)
+        # spectrogram = (-np.log(spectrogram)).astype(np.uint8)
+        
+        # S = -np.log(S)
+        S *= (255.0/S.max())  
+        S *= 4
 
-        for i, y_col in enumerate(Y):
-            if y_col.any():
-                draw_red_dot(img, (i, 100), 5)
-                print(i)
+        
+        img = Image.fromarray(S.astype(np.int8), mode='L')
 
+        
+        for i, col in enumerate(Y):
+            diff = np.diff(col)
+            label_starts = np.where(diff == 1)[0]
+            for start in label_starts:
+                draw_annotation(img, start, 250) # just do 250hz for now
+
+
+        img = img.transpose(Image.FLIP_TOP_BOTTOM)  # Flip the image vertically
         img.thumbnail((400, 400))  
         img_tk = ImageTk.PhotoImage(img)
         spectrogram_label.config(image=img_tk)
         spectrogram_label.image = img_tk
         
-        # Display the selected annotation
-        # annotation_text = annotations[index] if index < len(annotations) else "No annotation"
-        # annotation_label.config(text=annotation_text)
        
 
-def draw_red_dot(image, position, radius=5):
-    draw = ImageDraw.Draw(image)
-    x, y = position
-    draw.ellipse(
-        (x - radius, y - radius, x + radius, y + radius), 
-        fill='red', 
-        outline='red'
-    )
+def draw_annotation(img, x, y, w=100, l=50):
+    draw = ImageDraw.Draw(img)
+    draw.rectangle(((x, y), (x+w, y+l)), outline='red', width=2)
+    return img
 
-    return image
 
 def on_select(event):
     selection = listbox.curselection()
@@ -56,7 +56,6 @@ def on_select(event):
 
 with open("./objects/spec_test.pkl", 'rb') as f:
     spectrograms = pickle.load(f)
-
 
 
 root = tk.Tk()
