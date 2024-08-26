@@ -5,41 +5,24 @@ _Supervised by – Dr Paul Nguyen Hong Duc, Dr Evgeny Sidenko, Prof. Christine E
 [insert abstract]
 
 
-## Build Dependacies
-```
-pip install setuptools
-```
-
 ## Usage
 ! currently not in usable state
 
-set the dataset root in /.env
+set the dataset root under `.env`
 ```.env
 DATA_ROOT="/path/to/wavfiles/" 
 ```
 
-setup a local environment
-```
-python -m venv env
-
-# (mac and Linux)
-source env/bin/activate 
-
-# (Windows)
-env\Scripts\activate 
-
-# or any prefered environment manager
-```
-
-install the package code under /scr
+setup a local environment and install the package code under `scr` 
+in editable mode
 ```
 pip install -e .
 ```
 
-run scripts ect
+run scripts, import modules ect
 ```
 cd scripts
-python train_CNN_segmentation.py [-d]
+python train_CRNN_segmentation.py [-d]
 ```
 > proper script arguments and configuration will be added once functional
 
@@ -47,12 +30,13 @@ python train_CNN_segmentation.py [-d]
 ## Project Structure
 ```
 . 
-├── acoustic-AL (all resuable utility functions/classes) 
+├── src (all resuable utility functions/classes as a package) 
 ├── figures  
 ├── models (model files / checkpoints) 
 ├── notebooks (all jupyter notebooks) 
 ├── output (intermediate data and annotations) 
 │   ├── annotations 
 │   └── correlations 
+│   └── intermediate
 ├── scripts
 ```

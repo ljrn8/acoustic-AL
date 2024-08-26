@@ -1,6 +1,5 @@
 README.md
 pyproject.toml
-setup.cfg
 src/acoustic_al.egg-info/PKG-INFO
 src/acoustic_al.egg-info/SOURCES.txt
 src/acoustic_al.egg-info/dependency_links.txt

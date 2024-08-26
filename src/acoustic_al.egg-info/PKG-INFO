@@ -15,23 +15,45 @@ Requires-Dist: soundfile
 Requires-Dist: scikit-maad
 Requires-Dist: tensorflow
 
-## Active learning: human-in-the-loop strategies to efficiently analyse big acoustic datasets
+# Active learning: human-in-the-loop strategies to efficiently analyse big acoustic datasets
 
 _Supervised by – Dr Paul Nguyen Hong Duc, Dr Evgeny Sidenko, Prof. Christine Erbe_
 
 [insert abstract]
 
-### Project Structure
-The code currently stands as a resuable module under acoustic-AL, training/software scripts have yet to be implemented. 
 
+## Usage
+! currently not in usable state
+
+set the dataset root under `.env`
+```.env
+DATA_ROOT="/path/to/wavfiles/" 
+```
+
+setup a local environment and install the package code under `scr` 
+in editable mode
+```
+pip install -e .
+```
+
+run scripts, import modules ect
+```
+cd scripts
+python train_CRNN_segmentation.py [-d]
+```
+> proper script arguments and configuration will be added once functional
+
+
+## Project Structure
 ```
 . 
-├── acoustic-AL (all resuable utility functions/classes) 
+├── src (all resuable utility functions/classes as a package) 
 ├── figures  
 ├── models (model files / checkpoints) 
 ├── notebooks (all jupyter notebooks) 
 ├── output (intermediate data and annotations) 
 │   ├── annotations 
 │   └── correlations 
+│   └── intermediate
 ├── scripts
 ```
