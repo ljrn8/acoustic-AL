@@ -1,12 +1,9 @@
 import tkinter as tk
-from tkinter import filedialog
 from PIL import Image, ImageTk, ImageDraw
 
-from sklearn.preprocessing import MinMaxScaler
 
 import pickle
 from config import *
-import h5py
 import numpy as np
 
 
@@ -17,11 +14,10 @@ def update_display(index):
 
         S = S.astype(float)
 
-        # spectrogram = (-np.log(spectrogram)).astype(np.uint8)
         
         # S = -np.log(S)
-        S *= (255.0/S.max())  
-        S *= 4
+        S = (-np.log1p(S))
+        S *= (255.0/(S.max()))  
 
         
         img = Image.fromarray(S.astype(np.int8), mode='L')

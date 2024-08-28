@@ -6,6 +6,7 @@ from tensorflow.keras import layers
 from util import WavDataset
 from preprocessing import SpectrogramSequence
 from config import *
+from models import CRNN, CRNN_flat
 
 import pandas as pd
 import numpy as np
@@ -39,36 +40,13 @@ metrics = [
     #    tf.keras.metrics.AUC(name='auc'),
 ]
 
-def CRNN(input_shape, num_classes, n_filters):
-    freq_len, time_len, _ = input_shape
-
-    model = keras.Sequential()
-    model.add(layers.Input(shape=input_shape))
-
-    # CNN layers
-    for filters in n_filters:
-        model.add(
-            layers.Conv2D(
-                filters, (3, 3), activation="relu", padding="same", strides=(2, 1)
-            )
-        )
-        model.add(layers.MaxPooling2D((2, 1)))  # frequency pooling only
-
-    model.add(layers.Flatten())
-    model.add(
-        layers.Reshape((time_len, -1))
-    )  # input matrix for RNN shape=(time_frames, new CNN features)
-
-    # RNN layers
-    model.add(layers.LSTM(128, return_sequences=True))
-    model.add(layers.Dense(num_classes, activation="sigmoid"))
-
-    return model
 
 
 ## ---- script ----
 
-model = CRNN(input_shape=(512, 428, 1), num_classes=4, n_filters=[32, 64, 128, 256])
+model = CRNN_flat(input_shape=(512, 428, 1), n_filters=[32, 64, 128, 256])
+# model = CRNN_flat(input_shape=(512, 127, 1), n_filters=[32, 64, 128, 256])
+
 model.compile(
     optimizer="adam", 
     loss="binary_crossentropy", 
@@ -79,8 +57,16 @@ keras.utils.plot_model(model, to_file=FIGURES_DIR / "model.png")
 
 
 log.info("\npreparing dataset")
-seq_train = SpectrogramSequence(is_validation=False, validation_split=0.8, batch_size=BATCH)
-seq_validation = SpectrogramSequence(is_validation=True, validation_split=0.8, batch_size=BATCH)
+seq_train = SpectrogramSequence(is_validation=False, 
+                                validation_split=0.8, batch_size=BATCH,
+                                # chunk_length_seconds=3, chunk_overlap_seconds=2,
+                                     flat_labels=True
+                                )
+
+seq_validation = SpectrogramSequence(is_validation=True, 
+                                     validation_split=0.8, batch_size=BATCH,
+                                    #  chunk_length_seconds=3, chunk_overlap_seconds=2,
+                                     flat_labels=True)
 
 log.info("\n-- test batch --")
 batch_X, batch_Y = seq_validation.__getitem__(len(seq_validation))
@@ -103,6 +89,11 @@ cp_callback = keras.callbacks.ModelCheckpoint(
 
 
 tensorboard_callback = keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+
+
+# !! NOTE delete later 
+seq_train.chunk_info = seq_train.chunk_info[:7000]
+seq_validation.chunk_info = seq_validation.chunk_info[:1000]
 
 history = model.fit(
     seq_train,

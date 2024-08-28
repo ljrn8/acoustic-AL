@@ -41,16 +41,15 @@ class SpectrogramSequence(Sequence):
         is_validation: bool = False,
         validation_split = 0.8,
 
-        ds: WavDataset = WavDataset(DATA_ROOT),
         chunk_length_seconds=10,
         chunk_overlap_seconds=3,
         batch_size=32,
         train_hdf5_file=INTERMEDIATE / 'train.hdf5',
         label_tokens=DEFAULT_TOKENS,
-        sr=22_000
+        sr=22_000,
+        flat_labels=False,
     ):
-
-        self.ds = ds
+        self.flat_labels = flat_labels
         self.batch_size = batch_size
         self.label_tokens = label_tokens
         self.sr = sr
@@ -143,8 +142,12 @@ class SpectrogramSequence(Sequence):
             log.debug(f"slicing dataset => {start_frame, end_frame}")
             X_slice = train_f[recording]["X"][:, start_frame:end_frame]
             Y_slice = train_f[recording]["Y"][:, start_frame:end_frame]
+
+            if self.flat_labels:
+                Y_slice = np.array([y_col.any() for y_col in np.array(Y_slice).T])
+
             shapes = X_slice.shape, Y_slice.shape
-            log.debug(f'got shapes {str(shapes)}') 
+            log.debug(f'got shapes {str(shapes)}, Y_sum -> {Y_slice.sum()}') 
             batch_X.append(X_slice)
             batch_Y.append(Y_slice.T) # !! .T 
             
