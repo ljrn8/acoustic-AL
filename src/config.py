@@ -13,7 +13,8 @@ from colorama import Fore, Style, init
 dotenv_path = os.path.join(os.path.dirname(__file__), "../.env")
 load_dotenv(dotenv_path=dotenv_path)
 DATA_ROOT = Path(os.getenv("DATA_ROOT")) 
-LOG_LEVEL = os.getenv("LOG_LEVEL") or "INFO"
+# LOG_LEVEL = os.getenv("LOG_LEVEL") or "INFO"
+LOG_LEVEL = "INFO" 
 
 # Local Directories
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -9,26 +9,18 @@ import numpy as np
 
 def update_display(index):
     if 0 <= index < len(spectrograms):
-
         S, Y = spectrograms[index]
-
         S = S.astype(float)
 
-        
         # S = -np.log(S)
         S = (-np.log1p(S))
         S *= (255.0/(S.max()))  
-
-        
         img = Image.fromarray(S.astype(np.int8), mode='L')
-
-        
         for i, col in enumerate(Y):
             diff = np.diff(col)
             label_starts = np.where(diff == 1)[0]
             for start in label_starts:
                 draw_annotation(img, start, 250) # just do 250hz for now
-
 
         img = img.transpose(Image.FLIP_TOP_BOTTOM)  # Flip the image vertically
         img.thumbnail((400, 400))  
