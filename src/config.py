@@ -26,7 +26,7 @@ CORRELATIONS = Path(OUTPUT_DIR) / "correlations"
 INTERMEDIATE = Path(OUTPUT_DIR) / "intermediate"
 
 # other useful 'constants'
-ANN_DF = pd.read_csv(ANNOTATIONS / "correlated_annotations_7depl.csv")
+# ANN_DF = pd.read_csv(ANNOTATIONS / "correlated_annotations_7depl.csv")
 ANNOTATED_RECORDING = "1_20230316_063000.wav"
 
 
