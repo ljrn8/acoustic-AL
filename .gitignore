@@ -3,4 +3,5 @@ correlations/segmetns/
 .venv
 env
 testing.ipynb
-output/intermediate
+output/intermediate/*
+!output/intermediate/metadata/
