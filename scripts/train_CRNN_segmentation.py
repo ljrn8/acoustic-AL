@@ -16,7 +16,7 @@ import argparse
 
 log = logging.getLogger(__name__)
 
-
+# !!! make sure to set a high window (upsweeps)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", "-d", action="store_true") # TODO set log level

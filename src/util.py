@@ -43,7 +43,7 @@ def get_wav_length(filepath) -> float:
 
 
 def extract_segment(file, output_file, time_segment: tuple):
-    """Save a time segment of a sound file to the given output
+    """ Save a time segment of a sound file to the given output
     """
     start, end = time_segment
     y, sr = librosa.load(file)
@@ -54,7 +54,7 @@ def extract_segment(file, output_file, time_segment: tuple):
     
 
 class WavDataset(dict):
-    """ General use dataset for wav datasets. 
+    """ General use dictionary for wav datasets. 
     
     Summary:
         This class inherits a dictionary with the mapping WavDataset["file_name.wav"] = path_to_wav.
@@ -71,21 +71,24 @@ class WavDataset(dict):
     """
     root: str
     
-    def __init__(self, dataset_root=DATA_ROOT, reject_duplicates=False):
+    def __init__(self, dataset_root=DATA_ROOT, reject_duplicates=True):
         self.root = dataset_root
         self._parse_wav_files(reject_duplicates)
+        if len(self) == 0:
+            log.warning(f'wav dataset found 0 wav files under {self.root}')
         
     def _parse_wav_files(self, reject_duplicates: bool):
         for root, dirs, files in os.walk(self.root):
             for file in files:
                 if file.lower().endswith('.wav'):
                     full_path = Path(root) / file
-                    if file in self and not reject_duplicates:
+                    if file in self and reject_duplicates:
                         raise RuntimeError(
                             f"duplicate wav name file found:  {full_path}. \
                                 Only unique file names are accepted, consider setting reject_duplicates=True"
                         )
                     self[file] = full_path
+    
     
     def get_wav_files(self) -> list:
         return list(self.keys())
