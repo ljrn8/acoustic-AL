@@ -13,8 +13,8 @@ from colorama import Fore, Style, init
 dotenv_path = os.path.join(os.path.dirname(__file__), "../.env")
 load_dotenv(dotenv_path=dotenv_path)
 DATA_ROOT = Path(os.getenv("DATA_ROOT")) 
-# LOG_LEVEL = os.getenv("LOG_LEVEL") or "INFO"
-LOG_LEVEL = "INFO" 
+LOG_LEVEL = os.getenv("LOG_LEVEL") or "INFO"
+# LOG_LEVEL = "INFO" 
 
 # Local Directories
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -32,10 +32,8 @@ ANNOTATED_RECORDING = "1_20230316_063000.wav"
 
 # --- logging ---
 
-# Initialize colorama
+# colorama
 init(autoreset=True)
-
-# Define color formats
 LOG_COLORS = {
     logging.DEBUG: Fore.CYAN,
     logging.INFO: Fore.GREEN,
@@ -43,7 +41,6 @@ LOG_COLORS = {
     logging.ERROR: Fore.RED,
     logging.CRITICAL: Fore.MAGENTA,
 }
-
 
 # pretty logs
 class ColoredFormatter(logging.Formatter):

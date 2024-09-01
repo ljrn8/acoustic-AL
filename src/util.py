@@ -34,6 +34,21 @@ def timeit(priori_message=None):
     log.debug(f" * Time Taken: {elapsed_time:.6f} seconds")
 
 
+def read_audio_section(filename, start_time, stop_time):
+    """ read audio section (y, sr) efficiently from a wav file 
+    """
+    track = sf.SoundFile(filename)
+    can_seek = track.seekable() 
+    if not can_seek:
+        raise ValueError("not compatible with seeking")
+
+    sr = track.samplerate
+    start_frame = int(sr * start_time)
+    frames_to_read = int(sr * (stop_time - start_time))
+    track.seek(start_frame)
+    audio_section = track.read(frames_to_read)
+    return audio_section, sr
+
 def get_wav_length(filepath) -> float:
     """ efficient wav duration computation given in seconds
     """

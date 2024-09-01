@@ -11,18 +11,14 @@ import numpy as np
 import subprocess
 
 
-# --- script ---
-
 with open(INTERMEDIATE / 'metadata' / 'initial_training_recordings.pkl', 'rb') as f:
     all_train_recordings = pickle.load(f)
     
 incomplete_ann = pd.read_csv(INTERMEDIATE / 'metadata' / 'incomplete_manual_annotations.csv')
 
-# :)
 to_annotate = incomplete_ann[
         incomplete_ann['recording'].isin(all_train_recordings)
     ]
-
 
 annotations_f = ANNOTATIONS / 'annotations.csv'
 
@@ -72,7 +68,7 @@ for i, (recording, group_df) in enumerate(to_annotate.groupby('recording')):
     # label ref:
     # nr = '
     # triangle = ;
-    # fast trlil = l
+    # fast trill = l
     # upsweep = ]
 
 

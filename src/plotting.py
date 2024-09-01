@@ -22,7 +22,8 @@ import pandas as pd
 from IPython.display import Audio, display
 from pathlib import Path
 
-from util import MauritiusDataset
+
+from util import MauritiusDataset, read_audio_section
 
 
 def view_spectrogram(
@@ -82,15 +83,15 @@ def view_spectrogram(
     if time_segment:
         start, end = time_segment
         widen = 0.6
-        start_sample = max(int(sr * (start - widen)), 0)
-        end_sample = int(sr * (end + widen))
-    else:
-        start_sample, end_sample = 0, -1
+        y, sr = read_audio_section(file_path, start - widen, end + widen)
 
-    y, sr = librosa.load(file_path, sr=sr)
+    else:
+        y, sr = librosa.load(file_path, sr=sr)
+
+
+
     n_fft = 2048
     hop_length = n_fft // 4
-    y = y[start_sample:end_sample]
     S = librosa.stft(y, n_fft=n_fft, hop_length=hop_length)  # cut out time seg
 
     S_db = librosa.amplitude_to_db(np.abs(S), ref=np.max)
