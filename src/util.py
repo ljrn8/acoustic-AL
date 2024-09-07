@@ -1,4 +1,4 @@
-""" Optional utily fucntions/workflows for interacting with the dataset
+""" Optional utily functions/workflows for interacting with the dataset
 """
 
 import os
@@ -72,19 +72,20 @@ class WavDataset(dict):
     """ General use dictionary for wav datasets. 
     
     Summary:
-        This class inherits a dictionary with the mapping WavDataset["file_name.wav"] = path_to_wav.
-        Infers the root directory contains unqiue, long, wav formatted recordings, ignoring all other files 
+        A dictionary with the mapping WavDataset["file_name.wav"] = pathlib.Path("path/to/wav").
+        Infers the root directory contains unique, long, wav formatted recordings, ignoring all other files 
         and the folder hierarchy. 
 
     
     Example Usage:
-        ds = WavDataset()
+        ds = WavDataset("/path/to/dataset")
         recording_path = ds["1_20230316_063000.wav"]
         y, sr = librosa.load(recording_path)
         ...
 
     """
     root: str
+    EG = "1_20230316_063000.wav"
     
     def __init__(self, dataset_root=DATA_ROOT, reject_duplicates=True):
         self.root = dataset_root
@@ -110,6 +111,8 @@ class WavDataset(dict):
     
     def get_wav_paths(self) -> list:
         return list(self.values())
+
+
     
     
 
