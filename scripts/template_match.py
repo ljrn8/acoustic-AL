@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pickle
 import pandas as pd
-from correlating import Template
+from untracked.correlating import Template
 from config import CORRELATIONS
 
 DESC = (

@@ -1,11 +1,4 @@
-""" Preprocessing classes/functions
-
-TODO
-* refactor (nperseg ect)
-* overlapping chunks
-* yield from h5py datasets 
-
-"""
+## !! old bad module, not to be used, will be remove later 
 
 from tensorflow.keras.utils import Sequence
 import librosa
@@ -154,48 +147,3 @@ class SpectrogramSequence(Sequence):
         train_f.close()
         return np.array(batch_X), np.array(batch_Y)
     
-    
-"""
-                
-    def _extract_samplewise_annotations(self, rec_df, n_frames) -> np.array:
-        Y_recording = np.zeros(shape=(n_frames, 4))
-        for label, label_index in self.label_tokens.items():
-            label_annotations = rec_df[rec_df["label"] == label]
-            
-            label_start_frames = self.s_to_frames(label_annotations['min_t'])
-            label_end_frames = self.s_to_frames(label_annotations['max_t'])
-            
-            for start, end in zip(label_start_frames, label_end_frames):
-                Y_recording[start:end, label_index] = 1
-
-        return Y_recording
-    
-
-    def _load_and_process_recording(self, recording) -> np.array:
-        with timeit("loading new recording: " + recording):
-            start_time = time.time()
-            recording_path = self.ds[recording]
-            samplerate, s = wavfile.read(recording_path)
-            # s, samplerate = sf.read(recording_path)
-
-        with timeit("resampling " + recording):
-            if samplerate != self.sr:
-                s = resample_poly(s, self.sr, samplerate)
-
-            if len(s.shape) > 1:
-                s = np.mean(s, axis=1)
-
-        with timeit("stft " + recording):
-            S, _, _, _ = sound.spectrogram(
-                s, self.sr, self.window, self.nperseg, self.noverlap
-            )
-
-        with timeit("converting to db " + recording):
-            S_db = util.power2dB(S, self.db_range)
-
-        # S_db = librosa.amplitude_to_db(np.abs(S), ref=np.max)
-        elapsed_time = time.time() - start_time
-        print(f"\rTotal: {elapsed_time:.2f} seconds")
-
-        return S_db
-"""
