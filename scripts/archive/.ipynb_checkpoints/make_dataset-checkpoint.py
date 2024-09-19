@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import librosa
 
-from dataset import WavDataset
+from util import WavDataset
 from config import *
 
 from scipy.signal import resample_poly
@@ -11,10 +11,9 @@ import h5py
 import soundfile as sf
 from tqdm import tqdm
 
-# SR = 16_000 # required for YAMnet / VGGish
-SR = 22_000
 
-TRAIN_FILE = INTERMEDIATE / '16sr_samples.hdf5'
+SR = 16_000 # required for YAMnet / VGGish
+TRAIN_FILE = INTERMEDIATE / 'train.hdf5'
 DEFAULT_TOKENS = {  
     "fast_trill_6khz": 0,
     "nr_syllable_3khz": 1,
@@ -24,7 +23,9 @@ DEFAULT_TOKENS = {
 
 annotations = pd.read_csv(ANNOTATIONS / 'manual_annotations' / 'initial_manual_annotations.csv')
 annotated_recordings = annotations.recording.unique()
-training_recordings = np.load(ANNOTATIONS / 'manual_annotations' / 'all_annotated_recordings_filtered.npy',allow_pickle=True)
+
+with open(ANNOTATIONS / 'manual_annotations' / 'initial_training_recordings.pkl', 'rb') as f:
+    training_recordings = pickle.load(f)
 
 print(f'n# annotated recs: ', len(annotated_recordings))
 print(f'n# total training recs: ', len(training_recordings))
@@ -56,7 +57,7 @@ for rec in tqdm(training_recordings):
                 np.array(labelwize_annotations["max_t"].astype(float))
             )
             label_start_samples = librosa.time_to_samples(start_times, sr=SR)
-            label_end_samples = librosa.time_to_samples(end_times, sr=SR)
+            label_end_samples = librosa.time_to_samples(end_times,sr=SR)
 
             for start, end in zip(label_start_samples, label_end_samples):
                 labelled_timesteps[label_index, start:end] = 1
