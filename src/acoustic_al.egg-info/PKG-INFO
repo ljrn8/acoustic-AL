@@ -13,7 +13,6 @@ Requires-Dist: PyGetWindow
 Requires-Dist: python-dotenv
 Requires-Dist: soundfile
 Requires-Dist: scikit-maad
-Requires-Dist: tensorflow
 
 # Active learning: human-in-the-loop strategies to efficiently analyse big acoustic datasets
 

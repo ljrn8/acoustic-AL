@@ -20,6 +20,13 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
+DEFAULT_TOKENS = {  
+    "fast_trill_6khz": 0,
+    "nr_syllable_3khz": 1,
+    "triangle_3khz": 2,
+    "upsweep_500hz": 3,
+}
+
 def open_visualizer(filepath: Path):
     recording = filepath.name
     command = f'cd {filepath.parent} && \
