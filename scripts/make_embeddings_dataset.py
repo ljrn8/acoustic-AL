@@ -61,7 +61,7 @@ def main():
     for rec in tqdm(old_ds):
         
         # get recording samples and labeled from old
-        Y = old_ds[rec]['Y']  
+        # Y = old_ds[rec]['Y']  
         samples = old_ds[rec]['X']
 
         # resample to 16

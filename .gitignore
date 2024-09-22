@@ -5,3 +5,4 @@ env
 testing.ipynb
 output/intermediate/*
 !output/intermediate/metadata/
+models/*
