@@ -18,6 +18,12 @@ from contextlib import contextmanager
 
 from pathlib import Path
 
+import tkinter as tk
+from PIL import Image, ImageTk
+import glob
+
+
+
 log = logging.getLogger(__name__)
 
 DEFAULT_TOKENS = {  
@@ -84,6 +90,45 @@ def extract_segment(file, output_file, time_segment: tuple):
     y_segment = y[start_sample:end_sample]
     sf.write(output_file, y_segment, sr)
        
+    
+class ImagesSlideshow:
+    def __init__(self, root, image_folder):
+        self.root = root
+        self.root.title("Slideshow")
+        
+        # Load images
+        self.images = self.load_images(image_folder)
+        self.current_image_index = 0
+
+        # Create a label to display images
+        self.image_label = tk.Label(root)
+        self.image_label.pack()
+
+        # Start slideshow
+        self.show_image()
+        self.root.after(2000, self.next_image)  # Change image every 2000 ms (2 seconds)
+
+    def load_images(self, folder):
+        # Load all PNG images from the specified folder
+        image_files = glob.glob(os.path.join(folder, "*.png"))
+        return [ImageTk.PhotoImage(Image.open(img)) for img in image_files]
+
+    def show_image(self):
+        if self.images:
+            self.image_label.config(image=self.images[self.current_image_index])
+            self.image_label.image = self.images[self.current_image_index]  # Keep a reference
+
+    def next_image(self):
+        self.current_image_index = (self.current_image_index + 1) % len(self.images)
+        self.show_image()
+        self.root.after(2000, self.next_image)  # Schedule the next image
+
+
+def open_slideshow(image_folder):
+    root = tk.Tk()
+    app = ImagesSlideshow(root, image_folder)
+    root.mainloop()
+
 
 ## !! dont use this (will be removed)
 class MauritiusDataset:

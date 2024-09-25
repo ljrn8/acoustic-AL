@@ -4,7 +4,6 @@ import tensorflow_hub as hub
 import numpy as np
 
 import librosa 
-from dataset import WavDataset
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from config import *
@@ -35,7 +34,27 @@ def compute_frame_labels(label_tensor, threshold):
 
     return frame_labels
 
-
+def get_label_timestep(rec, annotated_recordings, annotations_df, n_samples, sr=SR):
+    labelled_timesteps = np.zeros(shape=(4, n_samples), dtype=bool)    
+    if rec in annotated_recordings:
+        rec_df = annotations_df[annotations_df.recording == rec]
+        
+        for label, label_index in DEFAULT_TOKENS.items():
+            labelwize_annotations = rec_df[rec_df.label == label]
+            start_times, end_times = (
+                np.array(labelwize_annotations["min_t"].astype(float)), 
+                np.array(labelwize_annotations["max_t"].astype(float))
+            )
+            label_start_samples = librosa.time_to_samples(start_times, sr=sr)
+            label_end_samples = librosa.time_to_samples(end_times, sr=sr)
+            
+            for start, end in zip(label_start_samples, label_end_samples):
+                labelled_timesteps[label_index, start:end] = 1
+    
+    return labelled_timesteps
+     
+     
+     
 def main():
     
     print(f'outputing to {OUTPUT}')
@@ -83,25 +102,7 @@ def main():
         group.attrs['shapes'] = (embedds.shape, label_frames.shape)
         
         
-def get_label_timestep(rec, annotated_recordings, annotations_df, n_samples, sr=SR):
-    labelled_timesteps = np.zeros(shape=(4, n_samples), dtype=bool)    
-    if rec in annotated_recordings:
-        rec_df = annotations_df[annotations_df.recording == rec]
-        
-        for label, label_index in DEFAULT_TOKENS.items():
-            labelwize_annotations = rec_df[rec_df.label == label]
-            start_times, end_times = (
-                np.array(labelwize_annotations["min_t"].astype(float)), 
-                np.array(labelwize_annotations["max_t"].astype(float))
-            )
-            label_start_samples = librosa.time_to_samples(start_times, sr=sr)
-            label_end_samples = librosa.time_to_samples(end_times, sr=sr)
-            
-            for start, end in zip(label_start_samples, label_end_samples):
-                labelled_timesteps[label_index, start:end] = 1
-    
-    return labelled_timesteps
-     
+
      
 if __name__ == "__main__":
     main()
