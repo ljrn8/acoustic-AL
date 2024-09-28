@@ -1,149 +1,184 @@
-## !! old bad module, not to be used, will be remove later 
+import tensorflow as tf
+from tensorflow  import keras
+import numpy as np
+from util import open_slideshow
 
-from tensorflow.keras.utils import Sequence
+import librosa 
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+from config import *
+import h5py
+from util import DEFAULT_TOKENS
 import librosa
 
-from config import *
-from util import WavDataset
-
 import numpy as np
-from tqdm import tqdm
-import h5py
+from keras import layers, metrics
+import tensorflow_ranking as tfr
 
-import logging
 
-log = logging.getLogger(__name__)
-
-DEFAULT_TOKENS = {  # NOTE 1hot?
-        "fast_trill_6khz": 0,
-        "nr_syllable_3khz": 1,
-        "triangle_3khz": 2,
-        "upsweep_500hz": 3,
+def _get_label(rec, start_frame, end_frame, samples_f):
+    seconds_required = {
+        'fast_trill_6khz': 0.6,
+        'nr_syllable_3khz': 0.2, 
+        'triangle_3khz': 0.5, # !!
+        'upsweep_500hz': 0.25,
     }
+    start_sample, end_sample = librosa.frames_to_samples([
+        start_frame, end_frame])
+    Y_samples = np.array(samples_f[rec]['Y'][:, start_sample:end_sample])
+    label_vec = np.zeros(4, dtype=bool)
+    for label, idx in DEFAULT_TOKENS.items():
+        samples_required = librosa.time_to_samples(
+            seconds_required[label], sr=22_000)
+        if Y_samples[idx, :].sum() >= samples_required:
+            label_vec[idx] = 1
 
-class SpectrogramSequence(Sequence):
-    # TODO overlapping chunks
+    return label_vec
 
-    nperseg = 1024
-    noverlap = 512
-    window = "hann"
-    db_range = 80
+def _generate_chunks(chunk_indexes, logmel_f):
+    X = np.array([logmel_f[rec]['40mels'][:, int(s):int(e)] 
+                  for rec, s, e in tqdm(chunk_indexes)])
+    Y = np.array([_get_label(rec, int(s), int(e)) 
+                  for rec, s, e in tqdm(chunk_indexes, desc='labels')])
+    return X, Y
 
-    def __init__(
-        self,
-        is_validation: bool = False,
-        validation_split = 0.8,
+def evaluate(Y_pred, Y_true, threshold=0.5, view=True):
+    from sklearn.metrics import f1_score, precision_score, recall_score, average_precision_score
+    metrics = {}
+    for label, i in DEFAULT_TOKENS.items():
+        m = {}
+        threshold = 0.5
+        Y_pred_binary = (Y_pred[:, i] >= threshold).astype(int)
+        m['f1'] = f1_score(Y_true[:, i], Y_pred_binary)
+        m['precision'] = precision_score(Y_true[:, i], Y_pred_binary)
+        m['recall'] = recall_score(Y_true[:, i], Y_pred_binary)
+        m['auc_pr'] = average_precision_score(Y_true[:, i], Y_pred[:, i])
+        metrics[label] = m
 
-        chunk_length_seconds=10,
-        chunk_overlap_seconds=3,
-        batch_size=32,
-        train_hdf5_file=INTERMEDIATE / 'train.hdf5',
-        label_tokens=DEFAULT_TOKENS,
-        sr=22_000,
-        flat_labels=False,
-    ):
-        self.flat_labels = flat_labels
-        self.batch_size = batch_size
-        self.label_tokens = label_tokens
-        self.sr = sr
-        self.train_hdf5_file = train_hdf5_file
+    if view:
+        import pprint
+        pp = pprint.PrettyPrinter(indent=4)
+        pp.pprint(metrics)
         
-        # chunk len/overlap in frames
-        self.chunk_len = self.s_to_frames(chunk_length_seconds)
-        self.chunk_overlap = self.s_to_frames(chunk_overlap_seconds)
-        
-        # prepare chunk indexes
-        self.chunk_info = self._get_chunks(is_validation, validation_split)
-        
-        
-    def _get_chunks(self, is_validation, validation_split):
-        train_f = h5py.File(self.train_hdf5_file, 'r')
-        cut_index = int(len(train_f) * validation_split)
-        
-        if is_validation:     
-            self.recordings = list(train_f)[cut_index:]            
-        else:   
-            self.recordings = list(train_f)[:cut_index]
+    return metrics
+
+def create_resnet50(input_shape = (40, 107, 1)):
+    from tensorflow.keras.applications import ResNet50 
+    base_model = ResNet50(weights=None, include_top=False, input_shape=input_shape)
+    model = keras.models.Sequential()
+    model.add(base_model)
+    model.add(layers.GlobalAveragePooling2D()) 
+    model.add(layers.Dense(256, activation='relu'))  
+    model.add(layers.Dense(4, activation='sigmoid'))
+    model.compile(optimizer='adam',
+                  loss='binary_crossentropy',
+                  metrics=[
+                    metrics.Recall(thresholds=0.5),
+                    metrics.Precision(thresholds=0.5),
+                    metrics.AUC(curve='pr', name='auc_pr'),
+                    # tfr.keras.metrics.get(key="map", name="metric/map"),
+                ])
+
+    return model
+
+def undersample(X, Y, reduce_to=0.5): 
+    total_instances = len(X)
+    assert len(Y) == total_instances
+
+    # annotated chunks
+    annotated_mask = np.any(Y, axis=1)
+    annotated_X = X[annotated_mask]
+    annotated_Y = Y[annotated_mask]
+
+    # unnanotated chunks
+    unannotated_mask = ~annotated_mask
+    unannotated_X = X[unannotated_mask]
+    unannotated_Y = Y[unannotated_mask]
+    
+    n_unannotated_to_sample = int(reduce_to * len(unannotated_X))
+    if len(unannotated_X) > 0: 
+        sampled_indexes = np.random.choice(len(unannotated_X), size=n_unannotated_to_sample, replace=False)
+        sampled_X = unannotated_X[sampled_indexes]
+        sampled_Y = unannotated_Y[sampled_indexes]
+        new_X = np.vstack((annotated_X, sampled_X))
+        new_Y = np.vstack((annotated_Y, sampled_Y))
+    else:
+        new_X = annotated_X
+        new_Y = annotated_Y
+    
+    return new_X, new_Y
+
+def oversample_minority_classes(X, Y):
+    num_classes = Y.shape[1]
+    class_counts = np.sum(Y, axis=0)
+    max_count = np.max(class_counts)
+    new_X = X
+    new_Y = Y
+    for class_index in range(num_classes): # 0 1 2 3
+        class_indices = np.where(Y[:, class_index] == 1)[0] # locations of nr
+        num_samples_needed = max_count - len(class_indices)
+        if num_samples_needed > 0:
+            sampled_indices = np.random.choice(class_indices, num_samples_needed, replace=True)
+            sampled_X = X[sampled_indices]
+            sampled_Y = Y[sampled_indices]
             
-        log.info(f"n# frames in a chunk: {self.chunk_len}")
-        log.info(f"n# frames in chunk overlap: {self.chunk_overlap}")
-        log.info(f"number of recordings: {len(self.recordings)}/{len(train_f)} with [validation={is_validation}, split={validation_split}]")
-        
-        chunk_info = []
-        
-        for recording in tqdm(self.recordings, desc='preparing chunks from hdf5 database'):
-            dataset = train_f[recording]
-            X = dataset["X"]
-            Y = dataset["Y"]
+            new_X = np.vstack((new_X, sampled_X))
+            new_Y = np.vstack((new_Y, sampled_Y))
             
-            freq_bins = X.shape[0]
-            n_frames = X.shape[1] 
-            hop = self.chunk_len - self.chunk_overlap
-            
-            assert n_frames == X.shape[1], f'mismatch shapes in {recording}: {X.shape}, {Y.shape}'
+    return new_X, new_Y
 
-            # load in all chunk indexes for this recording            
-            for start_frame in range(0, n_frames, hop):
-                if start_frame + self.chunk_len >  n_frames-1:
-                    continue
-                
-                chunk_info.append(
-                    (recording, start_frame, start_frame + self.chunk_len) 
-                )
-            
-        log.info("shuffling chunks")
-        np.random.shuffle(chunk_info)
-        
-        log.info(f'chunk info length: {len(chunk_info)}')
-        train_f.close()
-        
-        # ensure every chunk is equal length
-        rec, start, end = chunk_info[0]
-        ref_length = end - start
-        for chunk in chunk_info:
-            rec, start, end = chunk
-            assert ref_length == end - start
-            
-        log.info(f'chunk length in frames: {ref_length}')
-        log.info(f'frequency bins: {freq_bins}')
-        
-        return chunk_info
-    
-    
-    
-    def s_to_frames(self, seconds):
-        return librosa.time_to_frames(
-            seconds,
-            sr=self.sr,
-            hop_length=self.noverlap,
-            n_fft=self.nperseg,
-        )
-        
-    
-    def __len__(self):
-        return len(self.chunk_info) // self.batch_size
-    
-    
-    def __getitem__(self, idx):
-        log.debug(f"retrieving batch {idx}")
-        batch = self.chunk_info[idx * self.batch_size : (idx + 1) * self.batch_size]
-        train_f = h5py.File(self.train_hdf5_file, 'r')
-        batch_X = []
-        batch_Y = []
+def split(X, Y, p=0.8):
+    c = int(len(X) * p)
+    X_other, X_test = X[:c], X[c:]
+    Y_other, Y_test = Y[:c], Y[c:]
 
-        for recording, start_frame, end_frame in batch:
-            log.debug(f"slicing dataset => {start_frame, end_frame}")
-            X_slice = train_f[recording]["X"][:, start_frame:end_frame]
-            Y_slice = train_f[recording]["Y"][:, start_frame:end_frame]
+    cc = int(len(X_other) * p)
+    X_pool, X_train = X_other[:cc], X_other[cc:]
+    Y_pool, Y_train = Y_other[:cc], Y_other[cc:]
 
-            if self.flat_labels:
-                Y_slice = np.array([y_col.any() for y_col in np.array(Y_slice).T])
-
-            shapes = X_slice.shape, Y_slice.shape
-            log.debug(f'got shapes {str(shapes)}, Y_sum -> {Y_slice.sum()}') 
-            batch_X.append(X_slice)
-            batch_Y.append(Y_slice.T) # !! .T 
-            
-        train_f.close()
-        return np.array(batch_X), np.array(batch_Y)
+    return (X_train, Y_train), (X_pool, Y_pool), (X_test, Y_test)
     
+def train(model, X, Y, model_dir, reduce_empty_class, stopping_patience=5, 
+          stopping_moniter='val_loss', epochs=10, **kwargs):
+
+    from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint, EarlyStopping
+    model_dir.mkdir(exist_ok=True)
+
+    # tensorboard
+    log_dir = model_dir / "logs" / "fit"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    tensorboard_callback = TensorBoard(log_dir=log_dir)
+
+    # checkpoints
+    checkpoint_path = model_dir / "training"
+    Path(checkpoint_path).mkdir(exist_ok=True)  
+    cp_callback = keras.callbacks.ModelCheckpoint(
+        checkpoint_path / 'checkpoint.weights.h5', 
+        save_weights_only=True,
+        verbose=1, 
+    )
+
+    # early stopping
+    earlystopping_cp = EarlyStopping(
+        monitor=stopping_moniter,
+        patience=stopping_patience,
+        restore_best_weights=True,
+    )
+    
+    histories = []
+    for epoch in range(epochs): 
+        print(f"--- Epoch {epoch + 1} ---")
+        resampled_X, resampled_Y = undersample(X, Y, reduce_to=reduce_empty_class)
+        resampled_X, resampled_Y = oversample_minority_classes(resampled_X, resampled_Y)
+        history = model.fit(x=resampled_X, y=resampled_Y, 
+                  **kwargs, 
+                  epochs=1, 
+                  verbose=2,
+                    callbacks=[tensorboard_callback, cp_callback, earlystopping_cp])
+        
+        histories.append(history.history)
+        
+    df = pd.DataFrame(history.history)
+    df.to_csv(model_dir / "history.csv")
+    model.save(model_dir / 'model.keras')
+    return histories

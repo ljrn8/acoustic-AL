@@ -5,8 +5,22 @@ _Supervised by – Dr Paul Nguyen Hong Duc, Dr Evgeny Sidenko, Prof. Christine E
 [insert abstract]
 
 
-## Usage
-! currently not in usable state
+## Project Structure
+```
+. 
+├── src (all resuable utility functions/classes as a package) 
+├── figures  
+├── models (model files/run-logs/checkpoints) 
+├── notebooks (all jupyter notebooks, this is where most of the project was done) 
+├── output (intermediate data and annotations, most of which are untracked on GitHub) 
+│   ├── annotations 
+│   └── correlations 
+│   └── intermediate
+├── scripts (simple reusable scripts)
+```
+
+
+## Development
 
 set the dataset root under `.env`
 ```.env
@@ -19,24 +33,3 @@ in editable mode
 pip install -e .
 ```
 
-run scripts, import modules ect
-```
-cd scripts
-python train_CRNN_segmentation.py [-d]
-```
-> proper script arguments and configuration will be added once functional
-
-
-## Project Structure
-```
-. 
-├── src (all resuable utility functions/classes as a package) 
-├── figures  
-├── models (model files / checkpoints) 
-├── notebooks (all jupyter notebooks) 
-├── output (intermediate data and annotations) 
-│   ├── annotations 
-│   └── correlations 
-│   └── intermediate
-├── scripts
-```
