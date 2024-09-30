@@ -1,25 +1,18 @@
 """
-Preprocessing utilities for running active learning experiments
+Preprocessing utilities for active learning trails
 """
 
-import tensorflow as tf
 from tensorflow  import keras
 import numpy as np
 
 import librosa 
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from config import *
-import h5py
-from util import DEFAULT_TOKENS
 import librosa
 
 import numpy as np
 from keras import layers, metrics
-import tensorflow_ranking as tfr
 from sklearn.metrics import f1_score, precision_score, recall_score, average_precision_score
-from preprocessing import evaluation_dict
-import pickle
 from models import build_resnet16
 from keras import metrics
 
@@ -37,79 +30,7 @@ def get_resnet16(input_shape) -> keras.Model:
                     metrics.AUC(curve='pr', name='auc_pr')
                   ])
     return model
-
-def AL_resnet16_simulation(query_method, X, Y, metrics_pkl, 
-                           batch=32, n_queries = 200) -> dict:
-    """
-    Simulation active learning cycle on 40-bin logmel spectrograms with the Resnet-16 architecture.  
     
-    Args:
-        metrics_pkl (str or Path): pickle file to store the incremental metrics dictionary
-        n_queries (int): number of queries to perform. The query size is infered from this.
-        query_method (function): custom query method in that takes (classifier, X_unlabelled, n_instances)
-            and returns (query indecies, query items)
-    """
-    # build resnet 16 and  wrap in  scikit learn classifer
-    model = get_resnet16((40, 107, 1))
-    classifier = KerasClassifier(model, batch_size=batch, verbose=2)
-
-    # split data
-    init, pool, test = AL_split(X, Y)
-    initial_X, initial_Y = init
-    pool_X, pool_Y = pool
-    test_X, test_Y = test
-    currently_labelled = len(initial_X)
-    initial_ds_size = currently_labelled + len(pool_X)
-
-    # initial data
-    learner = ActiveLearner(
-        estimator=classifier,
-        X_training=initial_X, 
-        y_training=initial_Y,
-        verbose=2,
-        query_strategy=query_method 
-    )
-
-    query_size = int(pool_X.shape[0] / n_queries)
-    LB_metrics = []
-    trained_X = initial_X
-    trained_Y = initial_Y
-    
-    # active learning loop
-    for idx in tqdm(range(n_queries)):
-        print(f'Query no. {idx + 1}/{n_queries}')
-    
-        # query for instances
-        query_indicies, query_instances = learner.query(pool_X, n_instances=query_size)
-        
-        # train on instances
-        learner.teach(
-            X=pool_X[query_indicies], y=pool_Y[query_indicies], 
-            only_new=True, verbose=2
-        )
-    
-        # get evaluation metrics
-        print("evaluating ..")
-        currently_labelled += query_size
-        labelling_budget = currently_labelled / initial_ds_size 
-        pred_Y = classifier.predict_proba(test_X, batch_size=batch, verbose=2)
-        LB_metrics.append(
-            (labelling_budget, evaluation_dict(pred_Y, test_Y)))
-    
-        # store trained on samples 
-        trained_X = np.vstack((trained_X, pool_X[query_indicies]))
-        trained_Y = np.vstack((trained_Y, pool_Y[query_indicies]))
-        
-        # remove queried instance from pool
-        pool_X = np.delete(pool_X, query_indicies, axis=0)
-        pool_Y = np.delete(pool_Y, query_indicies, axis=0)
-
-        # store metrics
-        with open(metrics_pkl, 'wb') as f:
-            pickle.dump(LB_metrics, f)
-    
-    return LB_metrics
-
 
 def evaluation_dict(Y_pred, Y_true, threshold=0.5, view=True) -> dict:
     """
@@ -162,7 +83,7 @@ def undersample(X, Y, reduce_to=0.5) -> tuple:
     """
     Utilizes random undersampling for non-annotated, classless noise samples in X, Y.
 
-    Keyword-Args:
+    Args:
         reduce_to (float): the proportion of the noise samples to maintain.
     """
     total_instances = len(X)
