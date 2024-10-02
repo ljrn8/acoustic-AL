@@ -2,6 +2,7 @@
 Preprocessing utilities for active learning trails
 """
 
+import tensorflow as tf
 from tensorflow  import keras
 import numpy as np
 
@@ -10,49 +11,14 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import librosa
 
+from pathlib import Path
 import numpy as np
 from keras import layers, metrics
-from sklearn.metrics import f1_score, precision_score, recall_score, average_precision_score
+import pickle
 from models import build_resnet16
 from keras import metrics
-
-
-def get_resnet16(input_shape) -> keras.Model:
-    """
-    Retreive compiled resnet16 model with the given input
-    """
-    model = build_resnet16(input_shape=input_shape)
-    model.compile(optimizer='adam',
-                  loss='binary_crossentropy',
-                  metrics=[
-                    metrics.Recall(thresholds=0.5),
-                    metrics.Precision(thresholds=0.5),
-                    metrics.AUC(curve='pr', name='auc_pr')
-                  ])
-    return model
-    
-
-def evaluation_dict(Y_pred, Y_true, threshold=0.5, view=True) -> dict:
-    """
-    Evaluate the the given model outputs against precision, recall, AP, F1 (classwize)
-    """
-    metrics = {}
-    for label, i in DEFAULT_TOKENS.items():
-        Y_pred_binary = (Y_pred[:, i] >= threshold).astype(int)
-        Y_true_class = Y_true[:, i]
-        metrics[label] = {
-            'f1': f1_score(Y_true_class, Y_pred_binary),
-            'precision': precision_score(Y_true_class, Y_pred_binary),
-            'recall': recall_score(Y_true_class, Y_pred_binary),
-            'auc_pr': average_precision_score(Y_true_class, Y_pred[:, i])
-        }
-        
-    if view:
-        import pprint
-        pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(metrics)
-        
-    return metrics
+import keras_cv
+from util import MULTICLASS_LABELS
 
 
 def create_resnet50(input_shape = (40, 107, 1)) -> keras.Model:
@@ -121,12 +87,12 @@ def oversample_minority_classes(X, Y) -> tuple:
     Complete Oversampling of the minority classes using the duplication method.
     """
     num_classes = Y.shape[1]
-    class_counts = np.sum(Y, axis=0)
+    class_counts = np.sum(Y[:, :-1], axis=0) # ignore noise class
     max_count = np.max(class_counts)
     new_X = X
     new_Y = Y
-    for class_index in range(num_classes): # 0 1 2 3
-        class_indices = np.where(Y[:, class_index] == 1)[0] # locations of nr
+    for class_index in range(num_classes - 1): # 0 1 2 3 (not 4)
+        class_indices = np.where(Y[:, class_index] == 1)[0] 
         num_samples_needed = max_count - len(class_indices)
         if num_samples_needed > 0:
             sampled_indices = np.random.choice(class_indices, num_samples_needed, replace=True)
@@ -137,21 +103,6 @@ def oversample_minority_classes(X, Y) -> tuple:
             new_Y = np.vstack((new_Y, sampled_Y))
             
     return new_X, new_Y
-
-
-def AL_split(X, Y, test_amount=0.2, initial_train_amount=0.2) -> tuple[tuple]:
-    """
-    Split the data into (initial_training, pool, test) sets for 
-    active learning trials.
-    """
-    c = int(len(X) * (1 - test_amount))
-    X_other, X_test = X[:c], X[c:]
-    Y_other, Y_test = Y[:c], Y[c:]
-
-    cc = int(len(X_other) * (1 - initial_train_amount))
-    X_pool, X_train = X_other[:cc], X_other[cc:]
-    Y_pool, Y_train = Y_other[:cc], Y_other[cc:]
-    return (X_train, Y_train), (X_pool, Y_pool), (X_test, Y_test)
 
     
 def train(model, X, Y, model_dir, reduce_empty_class=0.8, stopping_patience=5, 

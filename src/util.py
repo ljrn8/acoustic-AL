@@ -31,7 +31,7 @@ DEFAULT_TOKENS = {
 }
 
 LABELS = list(DEFAULT_TOKENS.keys())
-
+MULTICLASS_LABELS = LABELS + ['noise']
 
 @contextmanager
 def timeit(priori_message=None):

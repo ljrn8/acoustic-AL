@@ -19,22 +19,8 @@ from sklearn.metrics import f1_score, precision_score, recall_score, average_pre
 import pickle
 from models import build_resnet16
 from keras import metrics
+import keras_cv
 
-
-def get_resnet16(input_shape) -> keras.Model:
-    """
-    Retreive compiled resnet16 model with the given input
-    """
-    model = build_resnet16(input_shape=input_shape)
-    model.compile(optimizer='adam',
-                  loss='binary_crossentropy',
-                  metrics=[
-                    metrics.Recall(thresholds=0.5),
-                    metrics.Precision(thresholds=0.5),
-                    metrics.AUC(curve='pr', name='auc_pr')
-                  ])
-    return model
-    
 
 def evaluation_dict(Y_pred, Y_true, threshold=0.5, view=True) -> dict:
     """
@@ -125,12 +111,12 @@ def oversample_minority_classes(X, Y) -> tuple:
     Complete Oversampling of the minority classes using the duplication method.
     """
     num_classes = Y.shape[1]
-    class_counts = np.sum(Y, axis=0)
+    class_counts = np.sum(Y[:, :-1], axis=0) # ignore noise class
     max_count = np.max(class_counts)
     new_X = X
     new_Y = Y
-    for class_index in range(num_classes): # 0 1 2 3
-        class_indices = np.where(Y[:, class_index] == 1)[0] # locations of nr
+    for class_index in range(num_classes - 1): # 0 1 2 3 (not 4)
+        class_indices = np.where(Y[:, class_index] == 1)[0] 
         num_samples_needed = max_count - len(class_indices)
         if num_samples_needed > 0:
             sampled_indices = np.random.choice(class_indices, num_samples_needed, replace=True)

@@ -7,6 +7,8 @@ import tensorflow as tf
 from keras import layers, models
 from functools import partial
 
+def mean_average_precision(y_true, y_pred):
+    
 
 def residual_block(x, filters, down_sample=False):
     res = x # residual shortcut
@@ -32,9 +34,10 @@ def residual_block(x, filters, down_sample=False):
     return x
 
 
-def build_resnet16(input_shape):
+def build_resnet16(input_shape, n_classes=5, multilabel=False):
     inputs = layers.Input(shape=input_shape)
-    x = layers.Conv2D(16, kernel_size=(3, 3), padding='same')(inputs)
+    x = layers.Conv2D(16, kernel_size=(3, 3), padding='same', 
+                      kernel_initializer='he_normal')(inputs)
     x = layers.BatchNormalization()(x)
     x = layers.ReLU()(x)
 
@@ -53,7 +56,8 @@ def build_resnet16(input_shape):
 
     x = layers.GlobalAveragePooling2D()(x)
 
-    x = layers.Dense(4, activation='sigmoid')(x) 
+    act = 'sigmoid' if multilabel else 'softmax'
+    x = layers.Dense(n_classes, activation=act)(x) 
 
     model = models.Model(inputs, x)
     return model
