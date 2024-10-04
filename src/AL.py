@@ -103,6 +103,7 @@ def save_metrics(LB_metrics: dict, working_dir: Path, identity: str, pred_Y=None
             plot_pr(name, true_Y[:, i], pred_Y[:, i])
         plt.savefig(working_dir / 'PR Curve.png')
         plt.show()
+        plt.clf()
 
     # AP curves
     x = [lb for lb, _ in LB_metrics]
@@ -114,6 +115,7 @@ def save_metrics(LB_metrics: dict, working_dir: Path, identity: str, pred_Y=None
         plt.title(title)
         plt.savefig(working_dir / f'{title}.png')
         plt.show()
+        plt.clf()
 
     # mAP curve
     AP = np.zeros(shape=(4, len(x)))

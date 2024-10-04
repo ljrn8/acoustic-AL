@@ -30,13 +30,26 @@ X = np.load(INTERMEDIATE / 'logmel_multiclass_noise.npy')
 Y = np.load(INTERMEDIATE / 'logmel_labels_multiclass_noise.npy')
 
 
-working_dir=OUTPUT_DIR / 'AL' / 'Entropy_300_0.3_' 
-identity='Entropy_300_0.3_'
-budget_cap=0.3
-n_queries=20
+working_dir=OUTPUT_DIR / 'AL' / 'Random_sampling_500_0.2_warm_' 
+identity='Random_sampling_500_0.2_warm_'
+budget_cap=0.2
+n_queries=500
 oversample=True
 batch=32
 model_file=MODEL_DIR / 'init_trained.keras'
+
+
+def entropy_sampling(classifier, X_unlabelled, n_instances, X_labeled=None):
+    probabilities = classifier.predict_proba(X_unlabelled, batch_size=32, verbose=2)
+    entropy_values = -np.sum(probabilities * np.log(probabilities + 1e-10), axis=1)
+    uncertain_indices = np.argsort(entropy_values)[-n_instances:]
+    return uncertain_indices, X_unlabelled[uncertain_indices]
+
+
+def random_sampling(classifier, X_unlabelled, n_instances):
+    i = np.random.choice(range(X_unlabelled.shape[0]), size=n_instances, replace=False)
+    return i, X[i] 
+
 
 
 working_dir.mkdir(exist_ok=True)
@@ -64,7 +77,7 @@ classifier = KerasClassifier(model, batch_size=batch, verbose=2, random_state=0,
 learner = ActiveLearner(
     estimator=classifier,
     verbose=2,
-    # query_strategy=entropy_sampling 
+    query_strategy=random_sampling 
 )
 
 classifier.fit(initial_X[0:1], initial_Y[0:1], epochs=1) # complains if i dont fit something
@@ -109,7 +122,7 @@ for idx in tqdm(range(n_queries)):
     pool_Y = pool_Y[mask]
         
     # store metrics
-    with open(working_dir / 'metrics_overwrite_pkl', 'wb') as f:
+    with open(working_dir / 'metrics_overwrite.pkl', 'wb') as f:
         pickle.dump(LB_metrics, f)
 
 # save all metrics and diagrams
