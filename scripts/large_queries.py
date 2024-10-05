@@ -16,6 +16,7 @@ from tqdm import tqdm
 import pickle
 from tensorflow import keras
 import keras_cv
+from keras import Model
 
 from util import MULTICLASS_LABELS
 from sklearn.metrics import average_precision_score
@@ -25,6 +26,27 @@ from scipy.stats import entropy
 
 X = np.load(INTERMEDIATE / 'logmel_multiclass_noise.npy')
 Y = np.load(INTERMEDIATE / 'logmel_labels_multiclass_noise.npy')
+
+
+def try_train(x, y):
+    model = build_resnet16((40, 107, 1)) 
+    model.compile(
+        optimizer='adam',
+        loss=keras_cv.losses.FocalLoss(alpha=0.25, gamma=2)
+    )
+    earlystopping_cp = EarlyStopping(
+        monitor='val_loss',
+        patience=3,
+        restore_best_weights=True,
+    )
+    model.fit(
+        x=x, y=y, 
+        epochs=10, verbose=2, 
+        validation_data=(test_X, test_Y),
+        batch_size=32,
+        callbacks=[earlystopping_cp]
+    )    
+    return model
 
 
 def random_sampling(model, pool_X, n_instances):
@@ -74,27 +96,56 @@ def adaptive_information_diversity(model, pool_X, trained_X, n_instances=5, sele
     
     # compute sim with trained and selected
     S = np.vstack((selected_X, trained_X))
-    avg_similarities =_partial_av_similiarities(S)
+    
+    # flatten Logmels for similiarities
+    S = np.array([s.flatten() for s in S])
+    avg_similarities =_partial_av_similiarities(S) # !! TODO try scipy.spatial.distance.pdist
     
     # only look at the similiarities for the selected instances
     n_selected = selected_X.shape[0]
     selected_similarities = avg_similarities[:n_selected]
-    normalized_similarities =  selected_similarities / selected_similarities.max()
-    selected_indices = np.argsort(normalized_similarities)[:n_instances]
+    
+    # normalized_similarities =  selected_similarities / selected_similarities.max() 
+    normalized_similarities =  1 / (1 + selected_similarities)
+    
+    selected_indices = np.argsort(normalized_similarities)[:n_instances] 
     
     # indicies with respect to the original pool
     i = indices[selected_indices]
     return i, pool_X[i]
     
+    
+def _embeddings_prediction(model, X):
+    embs_layer = model.layers[-2]
+    embs_model = Model(inputs=model.input, outputs=[embs_layer.output, model.output])
+    embs, preds =  embs_model.predict(X)
+    return embs, preds      
 
+
+def _selective_IDiv_embedding(model, pool_X, n_instances=5, selection_factor=10):
+    # entropy sampling    
+    embeddings, probabilities = _embeddings_prediction(model, pool_X)
+    entropy_values = -np.sum(probabilities * np.log(probabilities + 1e-10), axis=1)
+    uncertain_indices = np.argsort(entropy_values)[-n_instances:]
+    uncertain_embeddings = embeddings[uncertain_indices]
+    
+    # pairwise dist on embeddings
+    p = pairwise_distances(uncertain_embeddings, uncertain_embeddings)
+    av_similarity = p.mean(axis=1)
+    
+    # convert to diversity
+    diversities = 1 / (1 + av_similarity)
+    selected_indices = np.argsort(-diversities)[:n_instances]
+    i = uncertain_indices[selected_indices]
+    return i, pool_X[i] 
 
 
 
 
 ## --- script ---
 
-working_dir = OUTPUT_DIR / 'AL' / 'adaptive_IDiv_colderstart_fulltrain_noresampling_10Q_0.25'
-query_method = adaptive_information_diversity
+working_dir = OUTPUT_DIR / 'AL' / 'EbeddingIDiv_colderstart_fulltrain_noresampling_10Q_0.25'
+query_method = _selective_IDiv_embedding
 budget_cap = 0.25
 n_queries = 10
 
@@ -112,22 +163,6 @@ test_X, test_Y = test
 
 currently_labelled = len(initial_X)
 initial_ds_size = currently_labelled + len(pool_X)
-
-def train(model, x, y):
-    earlystopping_cp = EarlyStopping(
-        monitor='val_loss',
-        patience=3,
-        restore_best_weights=True,
-    )
-    model.fit(
-        # x=pool_X[query_indices], y=pool_Y[query_indices], for query-wise training
-        x=trained_X, y=trained_Y, # full model reset
-        epochs=10, verbose=2, 
-        validation_data=(test_X, test_Y),
-        batch_size=32,
-        callbacks=[earlystopping_cp]
-    )    
-
 query_size = int(((pool_X.shape[0] + initial_X.shape[0]) * budget_cap) / n_queries)
 print(f'query size: {query_size}')
 
@@ -137,39 +172,38 @@ print(f'query size: {query_size}')
 # import gc; gc.collect()
 
 trained_X, trained_Y = initial_X, initial_Y
-
-
 LB_metrics = []
 
 # import keras
 # model = keras.saving.load_model(MODEL_DIR / 'init_trained.keras')
 
-# compile and fit model on initial data
-model = build_resnet16((40, 107, 1))
-model.compile(optimizer='adam', loss=keras_cv.losses.FocalLoss(alpha=0.25, gamma=2))
-
 # train and evaluate on init dataset
-train(model, x=trained_X, y=trained_Y)
-currently_labelled += query_size
-labelling_budget = currently_labelled / initial_ds_size 
-pred_Y = model.predict(test_X, verbose=2)
-LB_metrics.append(
-    (labelling_budget, evaluation_dict(pred_Y, test_Y)))
+# model = try_train(x=trained_X, y=trained_Y)
+# currently_labelled += query_size
+# labelling_budget = currently_labelled / initial_ds_size 
+# pred_Y = model.predict(test_X, verbose=2)
+# LB_metrics.append(
+    # (labelling_budget, evaluation_dict(pred_Y, test_Y)))
+
+model = build_resnet16((40, 107, 1)) 
+model.compile(
+    optimizer='adam',
+    loss=keras_cv.losses.FocalLoss(alpha=0.25, gamma=2))
 
 for query in range(1, n_queries+1):
     print(f'Query no. {query}/{n_queries}')
     
-    # query
-    query_indices, _ =  query_method(model, pool_X, trained_X, n_instances=query_size)
+    # query_indices, _ =  query_method(model, pool_X, trained_X, n_instances=query_size)
+    query_indices, _ =  query_method(model, pool_X, n_instances=query_size)
     
-    # track everythin being trained on
+    # track everything being trained on
     trained_X = np.vstack((trained_X, pool_X[query_indices]))
     trained_Y = np.vstack((trained_Y, pool_Y[query_indices])) 
     
     # train 10 epochs on all data
-    train(model, x=trained_X, y=trained_Y)
+    model = try_train(x=trained_X, y=trained_Y)
 
-    # evalaute    
+    # evaluate    
     currently_labelled += query_size
     labelling_budget = currently_labelled / initial_ds_size 
     pred_Y = model.predict(test_X, verbose=2)
@@ -185,7 +219,5 @@ for query in range(1, n_queries+1):
     with open(working_dir / 'metrics_overwrite.pkl', 'wb') as f:
         pickle.dump(LB_metrics, f)
         
-    # reset the model before the next iteration
-    model = build_resnet16((40, 107, 1))
-    model.compile(optimizer='adam',
-            loss=keras_cv.losses.FocalLoss(alpha=0.25, gamma=2))
+
+    
