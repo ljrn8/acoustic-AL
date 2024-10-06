@@ -99,16 +99,15 @@ def adaptive_information_diversity(model, pool_X, trained_X, n_instances=5, sele
     
     # flatten Logmels for similiarities
     S = np.array([s.flatten() for s in S])
-    avg_similarities =_partial_av_similiarities(S) # !! TODO try scipy.spatial.distance.pdist
+    avg_similarities =_partial_av_similiarities(S) 
     
     # only look at the similiarities for the selected instances
     n_selected = selected_X.shape[0]
     selected_similarities = avg_similarities[:n_selected]
     
     # normalized_similarities =  selected_similarities / selected_similarities.max() 
-    normalized_similarities =  1 / (1 + selected_similarities)
-    
-    selected_indices = np.argsort(normalized_similarities)[:n_instances] 
+    diversities =  1 / (1 + selected_similarities)
+    selected_indices = np.argsort(-diversities)[:n_instances] 
     
     # indicies with respect to the original pool
     i = indices[selected_indices]
@@ -144,16 +143,15 @@ def _selective_IDiv_embedding(model, pool_X, n_instances=5, selection_factor=10)
 
 ## --- script ---
 
-working_dir = OUTPUT_DIR / 'AL' / 'EbeddingIDiv_colderstart_fulltrain_noresampling_10Q_0.25'
-query_method = _selective_IDiv_embedding
-budget_cap = 0.25
-n_queries = 10
+working_dir = OUTPUT_DIR / 'AL' / 'adaptiveiDIv_final_long_35Q_0.45'
+query_method = adaptive_information_diversity
+budget_cap = 0.45
+n_queries = 100
 
 
 working_dir.mkdir(exist_ok=True)
 keras.utils.set_random_seed(0) # reproducable
 
-# !!! dont have an initial train amount
 # split data
 init, pool, test = AL_split(X, Y, initial_train_amount=0.03, test_amount=0.25)
 
@@ -178,23 +176,23 @@ LB_metrics = []
 # model = keras.saving.load_model(MODEL_DIR / 'init_trained.keras')
 
 # train and evaluate on init dataset
-# model = try_train(x=trained_X, y=trained_Y)
-# currently_labelled += query_size
-# labelling_budget = currently_labelled / initial_ds_size 
-# pred_Y = model.predict(test_X, verbose=2)
-# LB_metrics.append(
-    # (labelling_budget, evaluation_dict(pred_Y, test_Y)))
 
-model = build_resnet16((40, 107, 1)) 
-model.compile(
-    optimizer='adam',
-    loss=keras_cv.losses.FocalLoss(alpha=0.25, gamma=2))
+
+
+# train on initail
+model = try_train(x=trained_X, y=trained_Y)
+
+# eval first 
+pred_Y = model.predict(test_X, verbose=2)
+labelling_budget = currently_labelled / initial_ds_size 
+LB_metrics.append(
+    (labelling_budget, evaluation_dict(pred_Y, test_Y)))
 
 for query in range(1, n_queries+1):
     print(f'Query no. {query}/{n_queries}')
     
     # query_indices, _ =  query_method(model, pool_X, trained_X, n_instances=query_size)
-    query_indices, _ =  query_method(model, pool_X, n_instances=query_size)
+    query_indices, _ =  query_method(model, pool_X, trained_X, n_instances=query_size)
     
     # track everything being trained on
     trained_X = np.vstack((trained_X, pool_X[query_indices]))
