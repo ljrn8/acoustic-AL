@@ -61,3 +61,12 @@ def build_resnet16(input_shape, n_classes=5, multilabel=False):
     model = models.Model(inputs, x)
     return model
 
+
+def build_compile_resnet16(input_shape=(40, 107, 1), n_classes=5, multilabel=False):
+    import keras_cv
+    model = build_resnet16(input_shape) 
+    model.compile(
+        optimizer='adam',
+        loss=keras_cv.losses.FocalLoss(alpha=0.25, gamma=2)
+    )
+    return model
