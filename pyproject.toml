@@ -19,7 +19,7 @@ dependencies = [
     "python-dotenv",
     "soundfile",
     "scikit-maad",
-    # "tensorflow"
+    "tensorflow"
 ]
 
 # [tool.setuptools]
